@@ -1,0 +1,10 @@
+[
+  {"path":".env.example","bytes":223,"sha256":"1d760538268a67c9c6e8c5c7feb273542d849bc7c62113f4bfe60c6d730a8510"},
+  {"path":"README.md","bytes":1606,"sha256":"d92df35fd20ac7299390893e389825f88f5f6df2d75615af0c343f0de3349644"},
+  {"path":"api/ingest-cookbook.schema.json","bytes":5685,"sha256":"a7b5e3150b5523e2eac0a2897bc08063dccb1481068f668c34c7f20fd363d15f"},
+  {"path":"api/ingest-menu.schema.json","bytes":6628,"sha256":"5c3367627e7dc3b668bbe3b2c411cd93855e32c43b150831d0baca02a4d81614"},
+  {"path":"api/ingest-object.schema.json","bytes":5771,"sha256":"2dc24d78590897eaae7245af99229c3d7b348285ec52a67f4c3c39a9d967e7c7"},
+  {"path":"api/openapi.yaml","bytes":14119,"sha256":"c2259e3cdf1e3d72313b329b25f50a26cbf506f7805c4ac6571582b30b5063d8"},
+  {"path":"seeds/seed_taxonomy.py","bytes":4158,"sha256":"556aa8fb86d6b2ad6b03cb79e16f9fd0bcbe5b46793313bcd0edc00b4add4d02"},
+  {"path":"tools/validate_package.py","bytes":5345,"sha256":"33f5ca6742e47d0955c1b501ede806da5bb8007f005480d0bcc4e4942565e933"}
+]
