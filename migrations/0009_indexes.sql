@@ -1,0 +1,23 @@
+SET search_path TO food_history, public;
+
+CREATE INDEX "idx_entity_type" ON "entity" ("entity_type_term_id");
+CREATE INDEX "idx_entity_status_visibility" ON "entity" ("record_status", "visibility");
+CREATE INDEX "idx_entity_preferred_label_trgm" ON "entity" USING gin ("preferred_label" gin_trgm_ops);
+CREATE INDEX "idx_entity_name_text_trgm" ON "entity_name" USING gin ("name_text" gin_trgm_ops);
+CREATE INDEX "idx_term_vocab" ON "taxonomy_term" ("vocabulary_id");
+CREATE INDEX "idx_taxonomy_label_trgm" ON "taxonomy_label" USING gin ("label_text" gin_trgm_ops);
+CREATE INDEX "idx_eta_term_entity" ON "entity_term_assignment" ("term_id", "entity_id");
+CREATE INDEX "idx_assertion_spo" ON "assertion" ("subject_entity_id", "predicate_term_id", "object_entity_id");
+CREATE INDEX "idx_assertion_predicate" ON "assertion" ("predicate_term_id");
+CREATE INDEX "idx_citation_source" ON "citation" ("source_entity_id");
+CREATE INDEX "idx_observation_entity_date" ON "observation" ("observed_entity_id", "date_edtf");
+CREATE INDEX "idx_menu_establishment_date" ON "menu" ("establishment_entity_id", "service_date_edtf");
+CREATE INDEX "idx_menu_item_food" ON "menu_item" ("normalized_food_entity_id");
+CREATE INDEX "idx_menu_item_printed_name_trgm" ON "menu_item" USING gin ("printed_name" gin_trgm_ops);
+CREATE INDEX "idx_recipe_occurrence_recipe" ON "recipe_occurrence" ("recipe_entity_id");
+CREATE INDEX "idx_transcription_fts" ON "transcription" USING gin (to_tsvector('simple', coalesce("text_content", '')));
+CREATE INDEX "idx_object_mark_text_trgm" ON "object_mark" USING gin ("normalized_text" gin_trgm_ops);
+CREATE INDEX "idx_place_coords" ON "place" ("latitude", "longitude");
+CREATE INDEX "idx_price_subject_date" ON "price_observation" ("subject_entity_id", "date_edtf");
+CREATE INDEX "idx_transaction_subject" ON "transaction_line" ("subject_entity_id");
+CREATE INDEX "idx_holding_holder" ON "holding" ("holder_entity_id", "is_current");
