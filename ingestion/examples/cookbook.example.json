@@ -1,0 +1,45 @@
+{
+  "source_key": "fixture:cookbook:practical-kitchen-1912",
+  "work": {
+    "preferred_label": "The Practical Kitchen Ledger",
+    "summary": "Synthetic cookbook fixture used to validate Work–Expression–Manifestation–Item ingestion.",
+    "terms": [{"kind":"object_type","code":"ROT.DOC.BOOK.COOK"}]
+  },
+  "expression": {
+    "preferred_label": "The Practical Kitchen Ledger — original English text",
+    "language": "en",
+    "version_statement": "First textual version",
+    "date": "1912"
+  },
+  "manifestation": {
+    "preferred_label": "The Practical Kitchen Ledger, 1912 edition",
+    "edition_statement": "First edition",
+    "publication_date": "1912",
+    "extent_text": "xii, 248 pages",
+    "publisher": {"source_key":"fixture:org:example-kitchen-press","preferred_label":"Example Kitchen Press"},
+    "publication_place": {"source_key":"fixture:place:chicago-il","preferred_label":"Chicago, Illinois"}
+  },
+  "item": {
+    "preferred_label": "The Practical Kitchen Ledger — example annotated copy",
+    "copy_number": "Fixture copy 1",
+    "signed": false,
+    "inscription_summary": "Synthetic ownership inscription for testing.",
+    "holding": {
+      "holder_source_key":"fixture:org:food-history-test-collection",
+      "holder_label":"Food History Test Collection",
+      "accession_number":"TEST-BOOK-0001"
+    },
+    "images": [{
+      "role":"front",
+      "storage_uri":"s3://fh-master/example/cookbook-1912-cover.tif",
+      "mime_type":"image/tiff",
+      "sha256":"1111111111111111111111111111111111111111111111111111111111111111"
+    }]
+  },
+  "credits": [{
+    "agent_source_key":"fixture:person:ada-example",
+    "agent_label":"Ada Example",
+    "role_code":"REL.AG.AUTH",
+    "credited_as":"Ada Example"
+  }]
+}
