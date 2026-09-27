@@ -1,0 +1,55 @@
+erDiagram
+    VOCABULARY ||--o{ TAXONOMY_TERM : contains
+    TAXONOMY_TERM ||--o{ TAXONOMY_LABEL : labels
+    TAXONOMY_TERM ||--o{ TAXONOMY_EDGE : child
+    TAXONOMY_TERM ||--o{ TAXONOMY_EDGE : parent
+
+    TAXONOMY_TERM ||--o{ ENTITY : types
+    ENTITY ||--o{ ENTITY_NAME : has
+    ENTITY ||--o{ EXTERNAL_IDENTIFIER : maps
+    ENTITY ||--o{ ENTITY_TERM_ASSIGNMENT : classified_as
+    TAXONOMY_TERM ||--o{ ENTITY_TERM_ASSIGNMENT : assigns
+
+    ENTITY ||--o{ ASSERTION : subject
+    TAXONOMY_TERM ||--o{ ASSERTION : predicate
+    ENTITY o|--o{ ASSERTION : object
+    ASSERTION ||--o{ ASSERTION_EVIDENCE : has
+    CITATION ||--o{ ASSERTION_EVIDENCE : evidence
+    ENTITY ||--o{ CITATION : source
+
+    ENTITY ||--o| PERSON : subtype
+    ENTITY ||--o| ORGANIZATION : subtype
+    ENTITY ||--o| PLACE : subtype
+    ENTITY ||--o| EVENT : subtype
+    ENTITY ||--o| CULINARY_CONCEPT : subtype
+
+    ENTITY ||--o| WORK : subtype
+    WORK ||--o{ EXPRESSION : realizes
+    EXPRESSION ||--o{ MANIFESTATION_EXPRESSION : embodied_in
+    MANIFESTATION ||--o{ MANIFESTATION_EXPRESSION : embodies
+    MANIFESTATION ||--o{ ITEM : exemplified_by
+    ENTITY ||--o| ITEM : subtype
+    ITEM ||--o| DOCUMENT : subtype
+    DOCUMENT ||--o| MENU : subtype
+    MENU ||--o{ MENU_SECTION : contains
+    MENU ||--o{ MENU_ITEM : lists
+    MENU_SECTION o|--o{ MENU_ITEM : groups
+    ENTITY o|--o{ MENU_ITEM : normalizes_to
+
+    ENTITY ||--o| PHYSICAL_OBJECT : subtype
+    PHYSICAL_OBJECT ||--o{ MEASUREMENT : measured_by
+    PHYSICAL_OBJECT ||--o{ OBJECT_MARK : marked_by
+    PHYSICAL_OBJECT ||--o{ PRODUCTION_RECORD : produced_as
+    PHYSICAL_OBJECT ||--o{ CONDITION_ASSESSMENT : assessed_by
+
+    ENTITY ||--o| DIGITAL_RESOURCE : subtype
+    DIGITAL_RESOURCE ||--o{ DIGITAL_REPRESENTATION : represents
+    ENTITY ||--o{ DIGITAL_REPRESENTATION : depicted_by
+    ENTITY ||--o{ TRANSCRIPTION : transcribed_as
+
+    ENTITY ||--o| COLLECTION : subtype
+    COLLECTION ||--o{ COLLECTION_MEMBERSHIP : contains
+    ENTITY ||--o{ COLLECTION_MEMBERSHIP : member
+    ENTITY ||--o{ HOLDING : item
+    ENTITY ||--o{ HOLDING : holder
+    ENTITY ||--o{ PROVENANCE_EVENT : history
