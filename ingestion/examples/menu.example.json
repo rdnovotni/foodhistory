@@ -1,0 +1,36 @@
+{
+  "source_key":"fixture:menu:railroad-1956-001",
+  "preferred_label":"Example Railroad Dining Car Dinner Menu, 1956",
+  "entity_type_code":"ENT.DOC",
+  "document_type_code":"ROT.DOC.MENU",
+  "menu_type_code":"ROT.DOC.MENU.DAILY",
+  "service_date":"1956-06-15",
+  "currency_code":"USD",
+  "summary":"Synthetic validation fixture representing a mid-century transportation dining menu; not a historical source.",
+  "terms":[
+    {"kind":"context","code":"CTX.TRANS.RAIL","primary":true},
+    {"kind":"subject","code":"SUB.17.01"},
+    {"kind":"collecting_domain","code":"COL.MENU"},
+    {"kind":"collecting_domain","code":"COL.RAIL"}
+  ],
+  "establishment":{
+    "source_key":"fixture:org:example-railroad",
+    "preferred_label":"Example Continental Railroad",
+    "entity_type_code":"ENT.AGENT.BUS"
+  },
+  "images":[{
+    "role":"front",
+    "storage_uri":"s3://fh-master/example/menu-railroad-1956-front.tif",
+    "original_filename":"front.tif",
+    "mime_type":"image/tiff",
+    "sha256":"0000000000000000000000000000000000000000000000000000000000000000",
+    "width_px":3000,
+    "height_px":4200
+  }],
+  "transcription":{"type":"diplomatic","status":"human_checked","language":"en","text":"DINNER\nSOUPS\nCream of Tomato .35\n..."},
+  "sections":[
+    {"sequence":1,"heading_original":"SOUPS","items":[{"sequence":1,"printed_name":"Cream of Tomato","normalized_food_source_key":"fixture:food:cream-tomato-soup","normalized_food_label":"Cream of tomato soup","normalized_food_type_code":"ENT.CUL.FOOD","price_text":".35","price_amount":0.35}]},
+    {"sequence":2,"heading_original":"ENTREES","items":[{"sequence":2,"printed_name":"Roast Sirloin of Beef, Brown Gravy","normalized_food_source_key":"fixture:food:roast-beef","normalized_food_label":"Roast beef","normalized_food_type_code":"ENT.CUL.FOOD","price_text":"1.65","price_amount":1.65}]},
+    {"sequence":3,"heading_original":"DESSERTS","items":[{"sequence":3,"printed_name":"Apple Pie","normalized_food_source_key":"fixture:food:apple-pie","normalized_food_label":"Apple pie","normalized_food_type_code":"ENT.CUL.FOOD","price_text":".30","price_amount":0.3}]}
+  ]
+}
