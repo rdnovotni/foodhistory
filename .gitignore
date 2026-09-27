@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local databases / dumps
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.backup
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Generated coverage / build output
+coverage/
+htmlcov/
+dist/
+build/
