@@ -5,7 +5,7 @@ Usage:
   DATABASE_URL=postgresql://... python seeds/seed_taxonomy.py
 Requires: psycopg >= 3
 """
-import csv, os, uuid
+import csv, gzip, os, uuid
 from pathlib import Path
 import psycopg
 
@@ -21,9 +21,16 @@ VOCABS = {
 def stable_uuid(kind: str, key: str) -> uuid.UUID:
     return uuid.uuid5(NAMESPACE, f"{kind}:{key}")
 
+def read_rows(path: Path):
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, mode="rt", encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
+
 def main():
     url = os.environ["DATABASE_URL"]
     base = Path(__file__).parent / "taxonomy"
+    manifest = __import__("json").loads((base / "manifest.json").read_text(encoding="utf-8"))
+    by_code = {x["vocabulary_code"]: x for x in manifest}
     with psycopg.connect(url) as conn:
         with conn.cursor() as cur:
             cur.execute("SET search_path TO food_history, public")
@@ -40,9 +47,10 @@ def main():
 
             rows_by_vocab = {}
             for code in VOCABS:
-                path = base / f"{code.lower()}.csv"
-                with path.open(encoding="utf-8", newline="") as f:
-                    rows_by_vocab[code] = list(csv.DictReader(f))
+                path = Path(__file__).resolve().parents[1] / by_code[code]["file"]
+                rows_by_vocab[code] = read_rows(path)
+                if len(rows_by_vocab[code]) != by_code[code]["term_count"]:
+                    raise ValueError(f"Taxonomy count mismatch for {code}: {len(rows_by_vocab[code])}")
 
             for code, rows in rows_by_vocab.items():
                 for row in rows:
