@@ -1,0 +1,20 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.org/schemas/ingest-cookbook.schema.json",
+  "title":"Food History Cookbook Ingest",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["source_key","work","expression","manifestation","item"],
+  "properties":{
+    "source_key":{"type":"string"},
+    "work":{"$ref":"#/$defs/entityBlock"},
+    "expression":{"type":"object","required":["preferred_label"],"properties":{"preferred_label":{"type":"string"},"language":{"type":["string","null"]},"version_statement":{"type":["string","null"]},"date":{"type":["string","null"]}}},
+    "manifestation":{"type":"object","required":["preferred_label"],"properties":{"preferred_label":{"type":"string"},"edition_statement":{"type":["string","null"]},"publication_date":{"type":["string","null"]},"extent_text":{"type":["string","null"]},"isbn":{"type":["string","null"]},"oclc_number":{"type":["string","null"]},"publisher":{"type":["object","null"],"properties":{"source_key":{"type":"string"},"preferred_label":{"type":"string"}},"required":["source_key","preferred_label"]},"publication_place":{"type":["object","null"],"properties":{"source_key":{"type":"string"},"preferred_label":{"type":"string"}},"required":["source_key","preferred_label"]}}},
+    "item":{"type":"object","required":["preferred_label"],"properties":{"preferred_label":{"type":"string"},"copy_number":{"type":["string","null"]},"signed":{"type":"boolean"},"inscription_summary":{"type":["string","null"]},"holding":{"type":["object","null"],"properties":{"holder_source_key":{"type":"string"},"holder_label":{"type":"string"},"accession_number":{"type":["string","null"]},"local_call_number":{"type":["string","null"]}},"required":["holder_source_key","holder_label"]},"images":{"type":"array","items":{"$ref":"#/$defs/image"}}}},
+    "credits":{"type":"array","items":{"type":"object","required":["agent_source_key","agent_label","role_code"],"properties":{"agent_source_key":{"type":"string"},"agent_label":{"type":"string"},"role_code":{"type":"string"},"credited_as":{"type":["string","null"]}}}}
+  },
+  "$defs":{
+    "entityBlock":{"type":"object","required":["preferred_label"],"properties":{"preferred_label":{"type":"string"},"summary":{"type":["string","null"]},"terms":{"type":"array","items":{"type":"object","required":["kind","code"],"properties":{"kind":{"type":"string"},"code":{"type":"string"}}}}}},
+    "image":{"type":"object","required":["role","storage_uri"],"properties":{"role":{"type":"string"},"storage_uri":{"type":"string"},"original_filename":{"type":["string","null"]},"mime_type":{"type":["string","null"]},"sha256":{"type":["string","null"]}}}
+  }
+}

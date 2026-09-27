@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/ingest-menu.schema.json",
+  "title": "Food History Menu Ingest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source_key","preferred_label","entity_type_code","menu_type_code","sections"],
+  "properties": {
+    "source_key":{"type":"string","minLength":1},
+    "preferred_label":{"type":"string","minLength":1},
+    "summary":{"type":["string","null"]},
+    "names":{"type":"array","items":{"type":"object","required":["type","text"],"properties":{"type":{"type":"string"},"text":{"type":"string"},"language":{"type":["string","null"]},"script":{"type":["string","null"]}}}},
+    "terms":{"type":"array","items":{"type":"object","required":["kind","code"],"properties":{"kind":{"type":"string"},"code":{"type":"string"},"primary":{"type":"boolean","default":false}}}},
+    "entity_type_code":{"const":"ENT.DOC"},
+    "document_type_code":{"type":"string","default":"ROT.DOC.MENU"},
+    "menu_type_code":{"type":"string"},
+    "service_date":{"type":["string","null"]},
+    "currency_code":{"type":["string","null"],"pattern":"^[A-Z]{3}$"},
+    "establishment":{"type":["object","null"],"properties":{"source_key":{"type":"string"},"preferred_label":{"type":"string"},"entity_type_code":{"type":"string","default":"ENT.AGENT.BUS"}},"required":["source_key","preferred_label"]},
+    "images":{"type":"array","items":{"$ref":"#/$defs/image"}},
+    "transcription":{"$ref":"#/$defs/transcription"},
+    "sections":{"type":"array","items":{"type":"object","required":["sequence","items"],"properties":{"sequence":{"type":"integer","minimum":1},"heading_original":{"type":["string","null"]},"course_code":{"type":["string","null"]},"page_label":{"type":["string","null"]},"items":{"type":"array","items":{"type":"object","required":["sequence","printed_name"],"properties":{"sequence":{"type":"integer","minimum":1},"printed_name":{"type":"string"},"printed_description":{"type":["string","null"]},"normalized_food_source_key":{"type":["string","null"]},"normalized_food_label":{"type":["string","null"]},"normalized_food_type_code":{"type":["string","null"]},"portion_text":{"type":["string","null"]},"price_text":{"type":["string","null"]},"price_amount":{"type":["number","null"]},"currency_code":{"type":["string","null"]}}}}}}}
+  },
+  "$defs":{
+    "image":{"type":"object","required":["role","storage_uri"],"properties":{"role":{"type":"string"},"storage_uri":{"type":"string"},"original_filename":{"type":["string","null"]},"mime_type":{"type":["string","null"]},"sha256":{"type":["string","null"],"pattern":"^[0-9a-fA-F]{64}$"},"width_px":{"type":["integer","null"]},"height_px":{"type":["integer","null"]}}},
+    "transcription":{"type":["object","null"],"properties":{"type":{"type":"string","enum":["ocr","diplomatic","normalized","translation"]},"status":{"type":"string","enum":["draft","machine","human_checked","expert_reviewed"]},"language":{"type":["string","null"]},"text":{"type":"string"}},"required":["type","status","text"]}
+  }
+}

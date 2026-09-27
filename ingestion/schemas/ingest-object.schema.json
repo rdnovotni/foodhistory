@@ -1,0 +1,28 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.org/schemas/ingest-object.schema.json",
+  "title":"Food History Object Ingest",
+  "type":"object",
+  "additionalProperties":false,
+  "required":["source_key","preferred_label","object_type_code"],
+  "properties":{
+    "source_key":{"type":"string","minLength":1},
+    "preferred_label":{"type":"string","minLength":1},
+    "summary":{"type":["string","null"]},
+    "names":{"type":"array","items":{"type":"object","required":["type","text"],"properties":{"type":{"type":"string"},"text":{"type":"string"},"language":{"type":["string","null"]},"script":{"type":["string","null"]}}}},
+    "terms":{"type":"array","items":{"type":"object","required":["kind","code"],"properties":{"kind":{"type":"string"},"code":{"type":"string"},"primary":{"type":"boolean","default":false}}}},
+    "entity_type_code":{"const":"ENT.OBJ"},
+    "object_type_code":{"type":"string"},
+    "authenticity_status":{"type":["string","null"]},
+    "manufacture_date":{"type":["string","null"]},
+    "material_summary":{"type":["string","null"]},
+    "completeness_text":{"type":["string","null"]},
+    "measurements":{"type":"array","items":{"type":"object","required":["type"],"properties":{"type":{"type":"string"},"value":{"type":["number","null"]},"unit_code":{"type":["string","null"]},"display_text":{"type":["string","null"]}}}},
+    "marks":{"type":"array","items":{"type":"object","required":["type"],"properties":{"type":{"type":"string"},"transcription":{"type":["string","null"]},"normalized_text":{"type":["string","null"]},"location":{"type":["string","null"]},"date_code":{"type":["string","null"]}}}},
+    "production":{"type":["object","null"],"properties":{"manufacturer_source_key":{"type":["string","null"]},"manufacturer_label":{"type":["string","null"]},"model_or_pattern":{"type":["string","null"]},"batch_or_lot_code":{"type":["string","null"]},"date":{"type":["string","null"]}}},
+    "condition":{"type":["object","null"],"properties":{"assessment_date":{"type":["string","null"],"format":"date"},"condition_text":{"type":"string"},"completeness_text":{"type":["string","null"]},"restoration_text":{"type":["string","null"]}},"required":["condition_text"]},
+    "holding":{"type":["object","null"],"properties":{"holder_source_key":{"type":"string"},"holder_label":{"type":"string"},"accession_number":{"type":["string","null"]}},"required":["holder_source_key","holder_label"]},
+    "images":{"type":"array","items":{"$ref":"#/$defs/image"}}
+  },
+  "$defs":{"image":{"type":"object","required":["role","storage_uri"],"properties":{"role":{"type":"string"},"storage_uri":{"type":"string"},"original_filename":{"type":["string","null"]},"mime_type":{"type":["string","null"]},"sha256":{"type":["string","null"]}}}}
+}
