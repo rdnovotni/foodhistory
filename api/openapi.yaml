@@ -1,0 +1,357 @@
+openapi: 3.1.0
+info:
+  title: Food History API
+  version: 1.0.0
+  description: >-
+    Phase 1A-C API contract for the Food History knowledge base, menu archive,
+    bibliographic catalogue, material-culture catalogue, and evidence graph.
+servers:
+  - url: https://api.example.org/v1
+paths:
+  /entities:
+    get:
+      summary: Search/browse entities
+      parameters:
+        - {name: q, in: query, schema: {type: string}}
+        - {name: type_code, in: query, schema: {type: string}, description: Entity taxonomy code such as ENT.CUL.FOOD}
+        - {name: term_code, in: query, schema: {type: string}, description: Applied taxonomy term or descendant filter}
+        - {name: cursor, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
+      responses:
+        '200':
+          description: Entity result page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/EntityPage'}
+  /entities/{public_id}:
+    get:
+      summary: Get an entity with names, taxonomy, identifiers, rights, and primary evidence summary
+      parameters:
+        - {$ref: '#/components/parameters/PublicId'}
+      responses:
+        '200':
+          description: Entity
+          content: {application/json: {schema: {$ref: '#/components/schemas/Entity'}}}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /entities/{public_id}/assertions:
+    get:
+      summary: Get evidence-bearing assertions for an entity
+      parameters:
+        - {$ref: '#/components/parameters/PublicId'}
+        - {name: predicate_code, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Assertions
+          content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/Assertion'}}}}
+  /taxonomy/{vocabulary_code}/terms:
+    get:
+      summary: Browse controlled vocabulary terms
+      parameters:
+        - {name: vocabulary_code, in: path, required: true, schema: {type: string, enum: [ENT, FC, SUB, ROT, CTX, COL, FAC, REL, EVD, CAT]}}
+        - {name: parent_code, in: query, schema: {type: string}}
+        - {name: q, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Terms
+          content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/TaxonomyTerm'}}}}
+  /taxonomy/terms/{code}:
+    get:
+      summary: Get one taxonomy concept
+      parameters:
+        - {name: code, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Taxonomy term
+          content: {application/json: {schema: {$ref: '#/components/schemas/TaxonomyTerm'}}}
+  /menus/{public_id}:
+    get:
+      summary: Get a menu and its ordered sections/items
+      parameters:
+        - {$ref: '#/components/parameters/PublicId'}
+      responses:
+        '200':
+          description: Menu resource
+          content: {application/json: {schema: {$ref: '#/components/schemas/Menu'}}}
+  /foods/{public_id}/menu-occurrences:
+    get:
+      summary: Get transcribed menu occurrences for a normalized food/beverage/product entity
+      parameters:
+        - {$ref: '#/components/parameters/PublicId'}
+        - {name: date_from, in: query, schema: {type: string}}
+        - {name: date_to, in: query, schema: {type: string}}
+        - {name: place_id, in: query, schema: {type: string}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Occurrence result page
+          content: {application/json: {schema: {$ref: '#/components/schemas/MenuOccurrencePage'}}}
+  /works/{public_id}:
+    get:
+      summary: Get work/expression/manifestation/item hierarchy
+      parameters:
+        - {$ref: '#/components/parameters/PublicId'}
+      responses:
+        '200':
+          description: Bibliographic work tree
+          content: {application/json: {schema: {$ref: '#/components/schemas/WorkTree'}}}
+  /objects/{public_id}:
+    get:
+      summary: Get material-culture object with measurements, marks, production, condition, images, holdings and provenance
+      parameters:
+        - {$ref: '#/components/parameters/PublicId'}
+      responses:
+        '200':
+          description: Object resource
+          content: {application/json: {schema: {$ref: '#/components/schemas/ObjectRecord'}}}
+  /search:
+    get:
+      summary: Unified search
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, minLength: 1}}
+        - {name: type_code, in: query, schema: {type: string}}
+        - {name: term_code, in: query, schema: {type: string}}
+        - {name: date_from, in: query, schema: {type: string}}
+        - {name: date_to, in: query, schema: {type: string}}
+        - {name: cursor, in: query, schema: {type: string}}
+      responses:
+        '200':
+          description: Ranked search results
+          content: {application/json: {schema: {$ref: '#/components/schemas/SearchPage'}}}
+  /admin/ingest/menu:
+    post:
+      summary: Ingest or update one menu package
+      security: [{staffToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './ingest-menu.schema.json'}
+      responses:
+        '200':
+          description: Ingestion result
+          content: {application/json: {schema: {$ref: '#/components/schemas/IngestResult'}}}
+  /admin/ingest/cookbook:
+    post:
+      summary: Ingest or update one cookbook work/edition/copy package
+      security: [{staffToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './ingest-cookbook.schema.json'}
+      responses:
+        '200': {description: Ingestion result, content: {application/json: {schema: {$ref: '#/components/schemas/IngestResult'}}}}
+  /admin/ingest/object:
+    post:
+      summary: Ingest or update one material-culture object package
+      security: [{staffToken: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: './ingest-object.schema.json'}
+      responses:
+        '200': {description: Ingestion result, content: {application/json: {schema: {$ref: '#/components/schemas/IngestResult'}}}}
+components:
+  securitySchemes:
+    staffToken: {type: http, scheme: bearer}
+  parameters:
+    PublicId:
+      name: public_id
+      in: path
+      required: true
+      schema: {type: string, minLength: 4}
+  responses:
+    NotFound: {description: Resource not found}
+  schemas:
+    TermRef:
+      type: object
+      required: [code, label]
+      properties:
+        code: {type: string}
+        label: {type: string}
+    EntityRef:
+      type: object
+      required: [public_id, label]
+      properties:
+        public_id: {type: string}
+        label: {type: string}
+        type: {$ref: '#/components/schemas/TermRef'}
+    Entity:
+      type: object
+      required: [public_id, preferred_label, type, record_status, visibility]
+      properties:
+        public_id: {type: string}
+        preferred_label: {type: string}
+        slug: {type: [string, 'null']}
+        type: {$ref: '#/components/schemas/TermRef'}
+        summary: {type: [string, 'null']}
+        record_status: {type: string}
+        visibility: {type: string}
+        names: {type: array, items: {$ref: '#/components/schemas/EntityName'}}
+        identifiers: {type: array, items: {$ref: '#/components/schemas/ExternalIdentifier'}}
+        terms: {type: array, items: {$ref: '#/components/schemas/TermAssignment'}}
+        primary_image: {oneOf: [{$ref: '#/components/schemas/DigitalRepresentation'}, {type: 'null'}]}
+    EntityName:
+      type: object
+      required: [type, text]
+      properties:
+        type: {type: string}
+        text: {type: string}
+        language: {type: [string, 'null']}
+        script: {type: [string, 'null']}
+        valid_from: {type: [string, 'null']}
+        valid_to: {type: [string, 'null']}
+    ExternalIdentifier:
+      type: object
+      required: [scheme, value]
+      properties:
+        scheme: {type: string}
+        value: {type: string}
+        uri: {type: [string, 'null']}
+    TermAssignment:
+      type: object
+      required: [kind, term]
+      properties:
+        kind: {type: string}
+        term: {$ref: '#/components/schemas/TermRef'}
+        primary: {type: boolean}
+    TaxonomyTerm:
+      type: object
+      required: [code, preferred_label, vocabulary_code]
+      properties:
+        code: {type: string}
+        vocabulary_code: {type: string}
+        preferred_label: {type: string}
+        scope_note: {type: [string, 'null']}
+        status: {type: string}
+        broader: {type: array, items: {$ref: '#/components/schemas/TermRef'}}
+        narrower: {type: array, items: {$ref: '#/components/schemas/TermRef'}}
+        labels: {type: array, items: {type: object}}
+    Citation:
+      type: object
+      required: [source]
+      properties:
+        source: {$ref: '#/components/schemas/EntityRef'}
+        locator: {type: [string, 'null']}
+        page: {type: [string, 'null']}
+        folio: {type: [string, 'null']}
+        image: {type: [string, 'null']}
+        stable_uri: {type: [string, 'null']}
+        excerpt: {type: [string, 'null']}
+    Assertion:
+      type: object
+      required: [predicate, value_kind]
+      properties:
+        predicate: {$ref: '#/components/schemas/TermRef'}
+        value_kind: {type: string}
+        object: {oneOf: [{$ref: '#/components/schemas/EntityRef'}, {type: 'null'}]}
+        value: {}
+        valid_from: {type: [string, 'null']}
+        valid_to: {type: [string, 'null']}
+        status: {oneOf: [{$ref: '#/components/schemas/TermRef'}, {type: 'null'}]}
+        confidence: {oneOf: [{$ref: '#/components/schemas/TermRef'}, {type: 'null'}]}
+        preferred: {type: boolean}
+        evidence:
+          type: array
+          items:
+            type: object
+            properties:
+              role: {type: string, enum: [supports, contradicts, qualifies]}
+              citation: {$ref: '#/components/schemas/Citation'}
+    DigitalRepresentation:
+      type: object
+      required: [role]
+      properties:
+        role: {type: string}
+        uri: {type: [string, 'null']}
+        iiif_manifest_uri: {type: [string, 'null']}
+        mime_type: {type: [string, 'null']}
+        width_px: {type: [integer, 'null']}
+        height_px: {type: [integer, 'null']}
+        caption: {type: [string, 'null']}
+    MenuItem:
+      type: object
+      required: [sequence, printed_name]
+      properties:
+        sequence: {type: integer}
+        section: {type: [string, 'null']}
+        printed_name: {type: string}
+        printed_description: {type: [string, 'null']}
+        normalized_food: {oneOf: [{$ref: '#/components/schemas/EntityRef'}, {type: 'null'}]}
+        portion: {type: [string, 'null']}
+        price_text: {type: [string, 'null']}
+        price_amount: {type: [number, 'null']}
+        currency_code: {type: [string, 'null']}
+        citation: {oneOf: [{$ref: '#/components/schemas/Citation'}, {type: 'null'}]}
+    Menu:
+      allOf:
+        - {$ref: '#/components/schemas/Entity'}
+        - type: object
+          properties:
+            menu_type: {$ref: '#/components/schemas/TermRef'}
+            establishment: {oneOf: [{$ref: '#/components/schemas/EntityRef'}, {type: 'null'}]}
+            service_date: {type: [string, 'null']}
+            currency_code: {type: [string, 'null']}
+            images: {type: array, items: {$ref: '#/components/schemas/DigitalRepresentation'}}
+            sections:
+              type: array
+              items:
+                type: object
+                properties:
+                  sequence: {type: integer}
+                  heading_original: {type: [string, 'null']}
+                  items: {type: array, items: {$ref: '#/components/schemas/MenuItem'}}
+    MenuOccurrencePage:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/MenuItem'}}
+        next_cursor: {type: [string, 'null']}
+    WorkTree:
+      type: object
+      properties:
+        work: {$ref: '#/components/schemas/Entity'}
+        expressions: {type: array, items: {type: object}}
+        manifestations: {type: array, items: {type: object}}
+        items: {type: array, items: {$ref: '#/components/schemas/EntityRef'}}
+    ObjectRecord:
+      allOf:
+        - {$ref: '#/components/schemas/Entity'}
+        - type: object
+          properties:
+            object_type: {$ref: '#/components/schemas/TermRef'}
+            authenticity_status: {type: [string, 'null']}
+            manufacture_date: {type: [string, 'null']}
+            materials: {type: [string, 'null']}
+            measurements: {type: array, items: {type: object}}
+            marks: {type: array, items: {type: object}}
+            condition_assessments: {type: array, items: {type: object}}
+            current_holding: {oneOf: [{type: object}, {type: 'null'}]}
+            provenance: {type: array, items: {type: object}}
+            images: {type: array, items: {$ref: '#/components/schemas/DigitalRepresentation'}}
+    SearchHit:
+      type: object
+      required: [entity, score]
+      properties:
+        entity: {$ref: '#/components/schemas/EntityRef'}
+        score: {type: number}
+        snippet: {type: [string, 'null']}
+        matched_fields: {type: array, items: {type: string}}
+    SearchPage:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/SearchHit'}}
+        facets: {type: object, additionalProperties: true}
+        next_cursor: {type: [string, 'null']}
+    EntityPage:
+      type: object
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Entity'}}
+        next_cursor: {type: [string, 'null']}
+    IngestResult:
+      type: object
+      required: [status, public_ids]
+      properties:
+        status: {type: string, enum: [created, updated, unchanged]}
+        public_ids: {type: array, items: {type: string}}
+        warnings: {type: array, items: {type: string}}
