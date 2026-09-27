@@ -1,0 +1,50 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: foodhistory
+          POSTGRES_PASSWORD: foodhistory
+          POSTGRES_DB: foodhistory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U foodhistory -d foodhistory_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://foodhistory:foodhistory@localhost:5432/foodhistory_test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Static package validation
+        run: python tools/validate_package.py
+      - name: Apply bootstrap migrations
+        run: |
+          for f in migrations/000{1..8}_*.sql; do
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Seed taxonomy
+        run: python seeds/seed_taxonomy.py
+      - name: Apply post-seed migrations
+        run: |
+          for f in migrations/0009_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql; do
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Validate ingestion examples
+        run: python ingestion/validate_examples.py
