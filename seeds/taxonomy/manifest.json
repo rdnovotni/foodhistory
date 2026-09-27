@@ -1,0 +1,12 @@
+[
+  {"vocabulary_code":"ENT","sheet":"01_ENTITY_CLASSES","file":"seeds/taxonomy/ent.csv","term_count":49},
+  {"vocabulary_code":"FC","sheet":"02_FOOD_CONCEPTS","file":"seeds/taxonomy/fc.csv","term_count":117},
+  {"vocabulary_code":"SUB","sheet":"03_SUBJECT_DOMAINS","file":"seeds/taxonomy/sub.csv","term_count":302},
+  {"vocabulary_code":"ROT","sheet":"04_RESOURCE_OBJECT_TYPES","file":"seeds/taxonomy/rot.csv","term_count":311},
+  {"vocabulary_code":"CTX","sheet":"05_CONTEXTS","file":"seeds/taxonomy/ctx.csv","term_count":115},
+  {"vocabulary_code":"COL","sheet":"06_COLLECTING_DOMAINS","file":"seeds/taxonomy/col.csv","term_count":86},
+  {"vocabulary_code":"FAC","sheet":"07_METADATA_FACETS","file":"seeds/taxonomy/fac.csv","term_count":193},
+  {"vocabulary_code":"REL","sheet":"08_RELATIONSHIPS","file":"seeds/taxonomy/rel.csv","term_count":124},
+  {"vocabulary_code":"EVD","sheet":"09_EVIDENCE_STATUS","file":"seeds/taxonomy/evd.csv","term_count":69},
+  {"vocabulary_code":"CAT","sheet":"10_CATALOGUE_MODULES","file":"seeds/taxonomy/cat.csv","term_count":26}
+]
