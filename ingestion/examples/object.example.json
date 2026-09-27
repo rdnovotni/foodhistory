@@ -1,0 +1,31 @@
+{
+  "source_key":"fixture:object:soda-bottle-1938-001",
+  "preferred_label":"Example embossed soda bottle, ca. 1938",
+  "entity_type_code":"ENT.OBJ",
+  "object_type_code":"ROT.OBJ.PACK.BOTTLE",
+  "authenticity_status":"original",
+  "manufacture_date":"1938~",
+  "material_summary":"Colorless glass",
+  "completeness_text":"Bottle complete; closure absent.",
+  "summary":"Synthetic material-culture fixture for testing object, mark, condition, production, collection, and image ingestion.",
+  "terms":[
+    {"kind":"collecting_domain","code":"COL.BOTTLE","primary":true},
+    {"kind":"collecting_domain","code":"COL.SODA"},
+    {"kind":"subject","code":"SUB.09.01"}
+  ],
+  "measurements":[
+    {"type":"height","value":23.4,"unit_code":"cm","display_text":"23.4 cm"},
+    {"type":"diameter","value":6.1,"unit_code":"cm","display_text":"6.1 cm"}
+  ],
+  "marks":[
+    {"type":"embossed_text","transcription":"EXAMPLE BOTTLING CO.","normalized_text":"EXAMPLE BOTTLING CO","location":"body"},
+    {"type":"maker_mark","transcription":"EBC 38","normalized_text":"EBC 38","location":"base","date_code":"38"}
+  ],
+  "production":{"manufacturer_source_key":"fixture:org:example-bottling-co","manufacturer_label":"Example Bottling Company","model_or_pattern":"Embossed returnable soda bottle","date":"1938~"},
+  "condition":{"assessment_date":"2026-09-27","condition_text":"Very good used condition with light case wear and internal haze.","completeness_text":"Bottle only; original closure absent.","restoration_text":"No restoration observed."},
+  "holding":{"holder_source_key":"fixture:org:food-history-test-collection","holder_label":"Food History Test Collection","accession_number":"TEST-OBJ-0001"},
+  "images":[
+    {"role":"front","storage_uri":"s3://fh-master/example/soda-bottle-front.tif","mime_type":"image/tiff","sha256":"2222222222222222222222222222222222222222222222222222222222222222"},
+    {"role":"mark","storage_uri":"s3://fh-master/example/soda-bottle-base-mark.tif","mime_type":"image/tiff","sha256":"3333333333333333333333333333333333333333333333333333333333333333"}
+  ]
+}
