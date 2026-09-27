@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
-"""Static validation for the Food History Phase 1 backend package.
-
-This does not replace running migrations against PostgreSQL. It checks that the
-package is internally coherent before a database is provisioned.
-"""
+"""Static validation for the Food History Phase 1 backend package."""
 from __future__ import annotations
-
-import csv
-import json
-import re
+import csv, gzip, json, re
 from pathlib import Path
-
 import yaml
 from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def fail(message: str):
     raise SystemExit(f"ERROR: {message}")
 
+def read_rows(path: Path):
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, mode="rt", encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
 
 def validate_examples():
     pairs = [
@@ -34,27 +29,23 @@ def validate_examples():
         if errors:
             fail(f"{example_rel} does not validate: {errors[0].message}")
 
-
 def load_taxonomy_codes():
     codes = set()
     manifest = json.loads((ROOT / "seeds/taxonomy/manifest.json").read_text(encoding="utf-8"))
     total = 0
     for entry in manifest:
         path = ROOT / entry["file"]
-        with path.open(encoding="utf-8", newline="") as f:
-            rows = list(csv.DictReader(f))
+        rows = read_rows(path)
         if len(rows) != entry["term_count"]:
-            fail(f"taxonomy manifest count mismatch for {path}")
+            fail(f"taxonomy manifest count mismatch for {path}: {len(rows)} != {entry['term_count']}")
         for row in rows:
             code = row["code"]
             if code in codes:
                 fail(f"duplicate taxonomy code {code}")
-            codes.add(code)
-            total += 1
+            codes.add(code); total += 1
     if total != 1392:
         fail(f"expected 1,392 taxonomy terms, found {total}")
     return codes
-
 
 def validate_example_codes(codes):
     code_key_names = {
@@ -66,21 +57,15 @@ def validate_example_codes(codes):
         if isinstance(obj, dict):
             for k, v in obj.items():
                 if isinstance(v, str):
-                    is_taxonomy = k in code_key_names and (
-                        k != "code" or (context and context[-1] == "terms")
-                    )
-                    if is_taxonomy and k != "role_code" and v not in codes:
+                    is_taxonomy = k in code_key_names and (k != "code" or (context and context[-1] == "terms"))
+                    if is_taxonomy and v not in codes:
                         fail(f"unknown taxonomy code {v} at {'.'.join(context + (k,))}")
-                    if k == "role_code" and context and "credits" in context and v not in codes:
-                        fail(f"unknown relationship code {v}")
                 walk(v, context + (k,))
         elif isinstance(obj, list):
             for i, v in enumerate(obj):
                 walk(v, context + (str(i),))
-
     for p in sorted((ROOT / "ingestion/examples").glob("*.json")):
         walk(json.loads(p.read_text(encoding="utf-8")), (p.name,))
-
 
 def validate_openapi():
     doc = yaml.safe_load((ROOT / "api/openapi.yaml").read_text(encoding="utf-8"))
@@ -89,26 +74,19 @@ def validate_openapi():
     for rel in ["api/ingest-menu.schema.json", "api/ingest-cookbook.schema.json", "api/ingest-object.schema.json"]:
         json.loads((ROOT / rel).read_text(encoding="utf-8"))
 
-
 def parse_migrations():
     sql = "\n".join(p.read_text(encoding="utf-8") for p in sorted((ROOT / "migrations").glob("*.sql")))
     create_re = re.compile(r'CREATE TABLE\s+"(?P<table>[^"]+)"\s*\((?P<body>.*?)\n\);', re.S | re.I)
     tables = {}
     for m in create_re.finditer(sql):
         table = m.group("table")
-        body = m.group("body")
-        cols = set(re.findall(r'^\s*"([^"]+)"\s+', body, re.M))
+        cols = set(re.findall(r'^\s*"([^"]+)"\s+', m.group("body"), re.M))
         if table in tables:
             fail(f"table created twice: {table}")
         tables[table] = cols
     if len(tables) != 56:
         fail(f"expected 56 Phase 1 tables, parsed {len(tables)}")
-
-    fk_re = re.compile(
-        r'ALTER TABLE\s+"(?P<child>[^"]+)".*?FOREIGN KEY\s*\("(?P<childcol>[^"]+)"\)\s*'
-        r'REFERENCES\s+"(?P<parent>[^"]+)"\s*\("(?P<parentcol>[^"]+)"\)',
-        re.I,
-    )
+    fk_re = re.compile(r'ALTER TABLE\s+"(?P<child>[^"]+)".*?FOREIGN KEY\s*\("(?P<childcol>[^"]+)"\)\s*REFERENCES\s+"(?P<parent>[^"]+)"\s*\("(?P<parentcol>[^"]+)"\)', re.I)
     for m in fk_re.finditer(sql):
         child, childcol, parent, parentcol = m.group("child"), m.group("childcol"), m.group("parent"), m.group("parentcol")
         if child not in tables or childcol not in tables[child]:
@@ -117,7 +95,6 @@ def parse_migrations():
             fail(f"bad FK target {parent}.{parentcol}")
     return tables
 
-
 def main():
     validate_examples()
     codes = load_taxonomy_codes()
@@ -125,8 +102,6 @@ def main():
     validate_openapi()
     tables = parse_migrations()
     print(f"PASS: examples, taxonomy (1,392 terms), OpenAPI, and {len(tables)} Phase 1 migration tables are internally consistent.")
-    print("NOTE: run the migration suite against a disposable PostgreSQL database before production deployment.")
-
 
 if __name__ == "__main__":
     main()
