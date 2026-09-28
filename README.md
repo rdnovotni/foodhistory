@@ -58,7 +58,7 @@ All public queries enforce `entity.visibility = 'public'`. They return public ID
 
 ## Staging
 
-`render.yaml` defines a staging-ready Docker service and private managed PostgreSQL 16 database. See `docs/STAGING.md` for provisioning, reviewed-data requirements, smoke testing, backup verification, and the production gate. Applying the blueprint requires access to a Render workspace linked to this repository.
+`render.yaml` defines a free, disposable Render preview with a Docker web service and private managed PostgreSQL 16 database. See `docs/STAGING.md` for free-tier limits, provisioning, reviewed-data requirements, smoke testing, backup verification, and the production gate. A durable staging or production environment requires a database plan with backups and retention beyond the free database's 30-day lifetime.
 
 ## Development without Compose
 

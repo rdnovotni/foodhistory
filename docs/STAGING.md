@@ -2,7 +2,9 @@
 
 ## Provision
 
-`render.yaml` defines a Docker web service and a private managed PostgreSQL 16 database. Import the repository as a Render Blueprint, review the proposed compute plans and region, and apply it. The web service receives its private database connection automatically and runs `python tools/bootstrap_db.py` before each deployment.
+`render.yaml` defines a Docker web service and a private managed PostgreSQL 16 database. Both resources explicitly use Render's free plan so this preview can be provisioned without a paid compute commitment. Import the repository as a Render Blueprint, review the proposed region, and apply it. The web service receives its private database connection automatically and runs `python tools/bootstrap_db.py` before each deployment.
+
+This is disposable preview infrastructure, not production staging. The free web service spins down while idle and can take about a minute to wake. The free PostgreSQL database is limited to 1 GB, has no managed backups, and expires 30 days after creation. Export any reviewed acceptance data that must survive, or move the database to a paid plan before expiry.
 
 The staging release job applies all unapplied migrations and the deterministic taxonomy seed. It intentionally does not set `LOAD_EXAMPLES`; synthetic fixtures must never be mistaken for staging research data.
 
@@ -34,9 +36,9 @@ Run the existing transactional loaders against staging only after the packages h
 - Work pages show the complete Work → Expression → Manifestation → Item chain.
 - Object pages show measurements, marks, production, condition, current holding, provenance, and public images.
 - Assertions retain claim status, confidence, validity strings, and supporting or contradicting citations.
-- A database restore test has been completed using the hosting provider's backup/export mechanism.
+- On durable paid staging, a database restore test has been completed using the hosting provider's backup/export mechanism. The free preview database has no managed backups and cannot satisfy this production gate.
 - Application logs contain no database URLs, credentials, restricted notes, or source excerpts beyond public responses.
 
 ## Production gate
 
-Do not promote staging until the acceptance checklist passes with reviewed data, a backup restore has been demonstrated, and the final public hostname, monitoring ownership, retention policy, and budget have named owners.
+Do not promote staging until the acceptance checklist passes with reviewed data, the database is on a durable plan, a backup restore has been demonstrated, and the final public hostname, monitoring ownership, retention policy, and budget have named owners.
