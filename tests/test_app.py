@@ -88,6 +88,46 @@ class FakeRepository:
     def get_menu_occurrences(self, public_id, **_kwargs):
         return {"items": [], "next_cursor": None} if public_id == "FH-TEST" else None
 
+    def get_work(self, public_id):
+        if public_id != "FH-WORK":
+            return None
+        return {
+            "work": {
+                **ENTITY,
+                "public_id": public_id,
+                "preferred_label": "Test cookbook",
+                "work_type": {"code": "ROT.DOC.BOOK.COOK", "label": "Cookbook"},
+                "original_language": "en",
+                "creation_date": "1912",
+                "credits": [],
+            },
+            "expressions": [],
+            "manifestations": [],
+            "items": [],
+        }
+
+    def get_object(self, public_id):
+        if public_id != "FH-OBJECT":
+            return None
+        return {
+            **ENTITY,
+            "public_id": public_id,
+            "preferred_label": "Test soda bottle",
+            "object_type": {"code": "ROT.OBJ.PACK.BOTTLE", "label": "Bottle"},
+            "authenticity_status": "original",
+            "manufacture_date": "1938~",
+            "materials": "Glass",
+            "completeness": "Complete",
+            "object_note": None,
+            "measurements": [],
+            "marks": [],
+            "production": [],
+            "condition_assessments": [],
+            "current_holding": None,
+            "provenance": [],
+            "images": [],
+        }
+
     def search(self, q, type_code=None, term_code=None, cursor=None, limit=25):
         return {
             "items": [
@@ -136,6 +176,14 @@ def test_taxonomy_and_menu_api():
     assert test_client.get("/v1/taxonomy/INVALID/terms").status_code == 404
 
 
+def test_work_and_object_api():
+    test_client = client()
+    assert test_client.get("/v1/works/FH-WORK").json()["work"]["creation_date"] == "1912"
+    assert test_client.get("/v1/objects/FH-OBJECT").json()["materials"] == "Glass"
+    assert test_client.get("/v1/works/missing").status_code == 404
+    assert test_client.get("/v1/objects/missing").status_code == 404
+
+
 def test_search_validation_and_results():
     test_client = client()
     assert test_client.get("/v1/search").status_code == 422
@@ -149,4 +197,6 @@ def test_html_catalogue_views_render():
     assert "Apple pie" in test_client.get("/entities").text
     assert "Controlled vocabularies" in test_client.get("/taxonomy").text
     assert "Dinner menu" in test_client.get("/menus/FH-MENU").text
+    assert "Test cookbook" in test_client.get("/works/FH-WORK").text
+    assert "Test soda bottle" in test_client.get("/objects/FH-OBJECT").text
     assert "Apple pie" in test_client.get("/search", params={"q": "apple"}).text

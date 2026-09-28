@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}{{ tree.work.preferred_label }} · Food History{% endblock %}
+{% block content %}
+<article class="detail">
+  <p class="eyebrow">Bibliographic work</p>
+  <h1>{{ tree.work.preferred_label }}</h1>
+  <p class="code">{{ tree.work.public_id }}{% if tree.work.creation_date %} · {{ tree.work.creation_date }}{% endif %}</p>
+  {% if tree.work.summary %}<p class="lede">{{ tree.work.summary }}</p>{% endif %}
+  {% if tree.work.credits %}<section><h2>Credits</h2><ul>{% for credit in tree.work.credits %}<li><a href="/entities/{{ credit.agent.public_id }}">{{ credit.credited_as or credit.agent.label }}</a>{% if credit.role %} — {{ credit.role.label }}{% endif %}</li>{% endfor %}</ul></section>{% endif %}
+  <section><h2>Expressions</h2>{% for expression in tree.expressions %}<article class="assertion"><h3><a href="/entities/{{ expression.entity.public_id }}">{{ expression.entity.label }}</a></h3><p>{{ expression.version_statement or 'No version statement' }}{% if expression.language %} · {{ expression.language }}{% endif %}{% if expression.date %} · {{ expression.date }}{% endif %}</p></article>{% else %}<p class="empty">No public expressions recorded.</p>{% endfor %}</section>
+  <section><h2>Manifestations</h2>{% for manifestation in tree.manifestations %}<article class="assertion"><h3><a href="/entities/{{ manifestation.entity.public_id }}">{{ manifestation.entity.label }}</a></h3><p>{{ manifestation.edition_statement or 'Edition not stated' }}{% if manifestation.publication_date %} · {{ manifestation.publication_date }}{% endif %}{% if manifestation.extent %} · {{ manifestation.extent }}{% endif %}</p>{% for statement in manifestation.publication_statements %}<p>{% if statement.agent %}{{ statement.agent.label }}{% endif %}{% if statement.place %}{% if statement.agent %}, {% endif %}{{ statement.place.label }}{% endif %}</p>{% endfor %}</article>{% else %}<p class="empty">No public manifestations recorded.</p>{% endfor %}</section>
+  <section><h2>Items</h2>{% for item in tree['items'] %}<article class="assertion"><h3><a href="/entities/{{ item.public_id }}">{{ item.label }}</a></h3>{% if item.copy_number %}<p>{{ item.copy_number }}</p>{% endif %}{% if item.inscription_summary %}<p>{{ item.inscription_summary }}</p>{% endif %}</article>{% else %}<p class="empty">No public items recorded.</p>{% endfor %}</section>
+</article>
+{% endblock %}

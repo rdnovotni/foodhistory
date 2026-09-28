@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ object.preferred_label }} · Food History{% endblock %}
+{% block content %}
+<article class="detail">
+  <p class="eyebrow">{{ object.object_type.label }}</p>
+  <h1>{{ object.preferred_label }}</h1>
+  <p class="code">{{ object.public_id }}{% if object.manufacture_date %} · {{ object.manufacture_date }}{% endif %}</p>
+  {% if object.summary %}<p class="lede">{{ object.summary }}</p>{% endif %}
+  {% if object.images %}<div class="image-grid">{% for image in object.images %}{% if image.uri and image.uri.startswith('http') %}<figure><img src="{{ image.uri }}" alt="{{ image.caption or object.preferred_label }}"><figcaption>{{ image.role }}</figcaption></figure>{% endif %}{% endfor %}</div>{% endif %}
+  <section><h2>Object description</h2><dl><dt>Authenticity</dt><dd>{{ object.authenticity_status or 'Not recorded' }}</dd><dt>Materials</dt><dd>{{ object.materials or 'Not recorded' }}</dd><dt>Completeness</dt><dd>{{ object.completeness or 'Not recorded' }}</dd></dl></section>
+  {% if object.measurements %}<section><h2>Measurements</h2><dl>{% for measurement in object.measurements %}<dt>{{ measurement.type }}</dt><dd>{{ measurement.display_text or measurement.value }}{% if not measurement.display_text and measurement.unit %} {{ measurement.unit }}{% endif %}</dd>{% endfor %}</dl></section>{% endif %}
+  {% if object.marks %}<section><h2>Marks and inscriptions</h2>{% for mark in object.marks %}<article class="assertion"><h3>{{ mark.type|replace('_', ' ')|title }}</h3><p>{{ mark.transcription or mark.normalized_text }}</p>{% if mark.location %}<p class="code">Location: {{ mark.location }}</p>{% endif %}</article>{% endfor %}</section>{% endif %}
+  {% if object.production %}<section><h2>Production</h2>{% for production in object.production %}<article class="assertion"><p>{% if production.manufacturer %}<a href="/entities/{{ production.manufacturer.public_id }}">{{ production.manufacturer.label }}</a>{% else %}Maker not recorded{% endif %}{% if production.date %} · {{ production.date }}{% endif %}</p>{% if production.model_or_pattern %}<p>{{ production.model_or_pattern }}</p>{% endif %}</article>{% endfor %}</section>{% endif %}
+  {% if object.condition_assessments %}<section><h2>Condition</h2>{% for condition in object.condition_assessments %}<article class="assertion"><p>{{ condition.condition_text }}</p>{% if condition.assessment_date %}<p class="code">Assessed {{ condition.assessment_date }}</p>{% endif %}{% if condition.restoration_text %}<p>{{ condition.restoration_text }}</p>{% endif %}</article>{% endfor %}</section>{% endif %}
+  {% if object.current_holding %}<section><h2>Current holding</h2><p><a href="/entities/{{ object.current_holding.holder.public_id }}">{{ object.current_holding.holder.label }}</a>{% if object.current_holding.accession_number %} · {{ object.current_holding.accession_number }}{% endif %}</p></section>{% endif %}
+  {% if object.provenance %}<section><h2>Provenance</h2>{% for event in object.provenance %}<article class="assertion"><h3>{{ event.type|title }}</h3><p>{% if event['from'] %}{{ event['from'].label }} → {% endif %}{% if event.to %}{{ event.to.label }}{% endif %}{% if event.date %} · {{ event.date }}{% endif %}</p>{% if event.note %}<p>{{ event.note }}</p>{% endif %}</article>{% endfor %}</section>{% endif %}
+</article>
+{% endblock %}

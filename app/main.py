@@ -132,6 +132,20 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="Food entity not found")
         return result
 
+    @app.get("/v1/works/{public_id}", tags=["bibliography"])
+    def work(public_id: str, repo: Repo) -> dict:
+        result = repo.get_work(public_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Work not found")
+        return result
+
+    @app.get("/v1/objects/{public_id}", tags=["material culture"])
+    def object_record(public_id: str, repo: Repo) -> dict:
+        result = repo.get_object(public_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Object not found")
+        return result
+
     @app.get("/v1/search", tags=["search"])
     def search(
         repo: Repo,
@@ -225,6 +239,24 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="Menu not found")
         return templates.TemplateResponse(
             request=request, name="menu.html", context={"menu": result}
+        )
+
+    @app.get("/works/{public_id}", response_class=HTMLResponse, include_in_schema=False)
+    def work_page(request: Request, public_id: str, repo: Repo) -> HTMLResponse:
+        result = repo.get_work(public_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Work not found")
+        return templates.TemplateResponse(
+            request=request, name="work.html", context={"tree": result}
+        )
+
+    @app.get("/objects/{public_id}", response_class=HTMLResponse, include_in_schema=False)
+    def object_page(request: Request, public_id: str, repo: Repo) -> HTMLResponse:
+        result = repo.get_object(public_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Object not found")
+        return templates.TemplateResponse(
+            request=request, name="object.html", context={"object": result}
         )
 
     @app.get("/search", response_class=HTMLResponse, include_in_schema=False)
