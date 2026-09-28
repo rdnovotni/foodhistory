@@ -50,6 +50,11 @@ jobs:
           done
       - name: Validate ingestion examples
         run: python ingestion/validate_examples.py
+      - name: Load synthetic application examples
+        run: |
+          python ingestion/python/load_menu.py ingestion/examples/menu.example.json
+          python ingestion/python/load_cookbook.py ingestion/examples/cookbook.example.json
+          python ingestion/python/load_object.py ingestion/examples/object.example.json
       - name: Test application
         run: pytest -q
 
