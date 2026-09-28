@@ -10,8 +10,12 @@ venv/
 .env
 .env.*
 !.env.example
+!.env.production.example
 *.pem
 *.key
+
+# Local operations data
+backups/
 
 # Local databases / dumps
 *.sqlite

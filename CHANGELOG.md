@@ -10,6 +10,7 @@
 - Fixed platform startup to resolve the application package from the repository root.
 - Deployed and smoke-tested the public Render preview at `food-history-staging.onrender.com`.
 - Added deployed-catalogue smoke testing and reviewed-data acceptance guidance.
+- Added a hardened private-first self-hosting stack with Tailscale-ready access, private PostgreSQL networking, guarded backup/restore tooling, health checks, update automation, boot recovery, and a disabled public HTTPS profile for the later website launch.
 
 ## Public catalogue v1.1 — 2026-09-27
 

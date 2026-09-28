@@ -37,3 +37,37 @@ def test_platform_launcher_sets_project_as_application_directory(monkeypatch):
 
     assert invocation["app"] == "app.main:app"
     assert invocation["app_dir"] == str(ROOT)
+
+
+def test_production_compose_is_private_by_default_and_examples_are_disabled():
+    compose = yaml.safe_load(
+        (ROOT / "compose.production.yaml").read_text(encoding="utf-8")
+    )
+    services = compose["services"]
+
+    assert "ports" not in services["db"]
+    assert services["db"]["restart"] == "unless-stopped"
+    assert compose["networks"]["backend"]["internal"] is True
+    assert services["setup"]["command"] == ["python", "tools/bootstrap_db.py"]
+    assert "LOAD_EXAMPLES" not in services["setup"]["environment"]
+    assert services["web"]["ports"] == ["127.0.0.1:8000:8000"]
+    assert services["web"]["read_only"] is True
+    assert services["web"]["restart"] == "unless-stopped"
+    assert services["caddy"]["profiles"] == ["public"]
+    assert services["caddy"]["ports"] == ["80:80", "443:443", "443:443/udp"]
+    public_bindings = {
+        name for name, service in services.items() if service.get("ports")
+    }
+    assert public_bindings == {"web", "caddy"}
+    assert all(
+        str(binding).startswith("127.0.0.1:") for binding in services["web"]["ports"]
+    )
+
+
+def test_public_proxy_enforces_https_security_headers():
+    caddyfile = (ROOT / "ops" / "Caddyfile").read_text(encoding="utf-8")
+
+    assert "{$PUBLIC_HOST}" in caddyfile
+    assert "reverse_proxy web:8000" in caddyfile
+    assert "Strict-Transport-Security" in caddyfile
+    assert "X-Content-Type-Options" in caddyfile
