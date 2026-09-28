@@ -5,7 +5,7 @@
 3. `pip install -r requirements.txt`.
 4. Set `DATABASE_URL`.
 5. Run `python seeds/seed_taxonomy.py`.
-6. Apply `0009` through `0012`.
+6. Apply `0009` and all later migrations in lexical order.
 7. Validate ingest examples.
 8. Ingest synthetic fixtures in a development database.
 9. Implement read API endpoints against the OpenAPI contract.

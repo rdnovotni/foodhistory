@@ -45,7 +45,7 @@ jobs:
         run: python seeds/seed_taxonomy.py
       - name: Apply post-seed migrations
         run: |
-          for f in migrations/0009_*.sql migrations/0010_*.sql migrations/0011_*.sql migrations/0012_*.sql; do
+          for f in migrations/0009_*.sql migrations/001[0-9]_*.sql; do
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
           done
       - name: Validate ingestion examples

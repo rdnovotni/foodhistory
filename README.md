@@ -12,7 +12,7 @@ The supported development path requires Docker with the Compose plugin:
 docker compose up --build
 ```
 
-Open <http://localhost:8000> for the catalogue or <http://localhost:8000/api/docs> for interactive API documentation. The first run starts PostgreSQL 16, applies the 12 existing migrations in their required order, loads all 1,392 taxonomy terms between migrations 0008 and 0009, loads the three existing synthetic examples, and starts the read-only web application.
+Open <http://localhost:8000> for the catalogue or <http://localhost:8000/api/docs> for interactive API documentation. The first run starts PostgreSQL 16, applies the ordered migrations, loads all 1,392 taxonomy terms between migrations 0008 and 0009, loads the three existing synthetic examples, and starts the read-only web application.
 
 The setup service is repeatable. It records applied migration filenames in the existing `food_history.schema_version` table and uses the idempotent taxonomy/fixture loaders. To reset only the local development database, run `docker compose down --volumes`; this removes the Compose-managed database volume.
 
@@ -37,7 +37,7 @@ The setup service is repeatable. It records applied migration filenames in the e
 1. Create a PostgreSQL database.
 2. Run migrations through `0008_foreign_keys_constraints.sql`.
 3. Install Python requirements and run `seeds/seed_taxonomy.py`.
-4. Run `0009_indexes.sql` through `0012_taxonomy_guards.sql`.
+4. Run `0009_indexes.sql` and all later migrations in lexical order.
 5. Validate the three ingest fixtures against their JSON Schemas.
 6. Ingest fixtures into a development database.
 7. Run the public read application in `app/`.
