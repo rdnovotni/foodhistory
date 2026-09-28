@@ -50,6 +50,8 @@ jobs:
           for f in migrations/0009_*.sql migrations/001[0-9]_*.sql; do
             psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
           done
+      - name: Provision public read-only database role
+        run: python tools/provision_public_reader.py
       - name: Validate ingestion examples
         run: python ingestion/validate_examples.py
       - name: Load synthetic application examples
