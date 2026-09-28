@@ -69,7 +69,8 @@ JOIN wiki_series s ON s.series_id = m.series_id;
 CREATE VIEW public_wiki_revision_related WITH (security_barrier = true) AS
 SELECT m.revision_id, m.target_slug, m.sequence
 FROM wiki_revision_related m
-JOIN wiki_page p ON p.published_revision_id = m.revision_id AND p.status = 'published';
+JOIN wiki_page p ON p.published_revision_id = m.revision_id AND p.status = 'published'
+JOIN wiki_page target ON target.slug = m.target_slug AND target.status = 'published';
 
 CREATE VIEW public_wiki_revision_metadata WITH (security_barrier = true) AS
 SELECT m.revision_id, m.is_disambiguation, m.event_month, m.event_day
@@ -77,5 +78,8 @@ FROM wiki_revision_metadata m
 JOIN wiki_page p ON p.published_revision_id = m.revision_id AND p.status = 'published';
 
 CREATE VIEW public_wiki_glossary WITH (security_barrier = true) AS
-SELECT g.slug, g.term, g.definition, g.article_slug
+SELECT g.slug, g.term, g.definition,
+       CASE WHEN EXISTS (
+           SELECT 1 FROM wiki_page p WHERE p.slug = g.article_slug AND p.status = 'published'
+       ) THEN g.article_slug ELSE NULL END AS article_slug
 FROM wiki_glossary g WHERE g.is_published = true;
