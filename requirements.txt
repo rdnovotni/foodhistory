@@ -5,6 +5,7 @@ fastapi>=0.115,<1
 uvicorn[standard]>=0.34,<1
 Jinja2>=3.1,<4
 markdown-it-py>=3,<4
+mdit-py-plugins>=0.4,<1
 bleach>=6,<7
 python-multipart>=0.0.20,<1
 Pillow>=11,<13

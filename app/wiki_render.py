@@ -3,16 +3,20 @@
 import re
 import unicodedata
 from html import unescape
+from math import ceil
 
 import bleach
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
+from mdit_py_plugins.footnote import footnote_plugin
 
-_MARKDOWN = MarkdownIt("commonmark", {"html": False, "linkify": False})
+_MARKDOWN = MarkdownIt("commonmark", {"html": False, "linkify": False}).use(footnote_plugin)
 _LINK = re.compile(r"\[\[([a-z0-9]+(?:-[a-z0-9]+)*)(?:\|([^\[\]\n]+))?\]\]")
+_GLOSSARY = re.compile(r"\{\{([a-z0-9]+(?:-[a-z0-9]+)*)\}\}")
+_INLINE = re.compile(r"\[\[([a-z0-9]+(?:-[a-z0-9]+)*)(?:\|([^\[\]\n]+))?\]\]|\{\{([a-z0-9]+(?:-[a-z0-9]+)*)\}\}")
 _TAGS = {
     "a", "blockquote", "br", "code", "em", "h1", "h2", "h3", "h4", "hr",
-    "li", "ol", "p", "pre", "span", "strong", "ul",
+    "li", "ol", "p", "pre", "span", "strong", "ul", "sup", "section", "button",
 }
 
 
@@ -37,14 +41,21 @@ def wiki_link_slugs(source: str) -> list[str]:
                               for match in _LINK.finditer(token.content)))
 
 
+def glossary_slugs(source: str) -> list[str]:
+    return list(dict.fromkeys(match.group(1) for token in _text_tokens(source)
+                              for match in _GLOSSARY.finditer(token.content)))
+
+
 def _anchor(value: str) -> str:
     value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-") or "section"
 
 
-def render_article(source: str, pages: dict[str, dict] | None = None) -> dict:
+def render_article(source: str, pages: dict[str, dict] | None = None,
+                   glossary: dict[str, dict] | None = None) -> dict:
     """Render article body and a matching heading outline; pages are public targets."""
     pages = pages or {}
+    glossary = glossary or {}
     blocks = _MARKDOWN.parse(source)
     toc = []
     anchors: dict[str, int] = {}
@@ -67,9 +78,25 @@ def render_article(source: str, pages: dict[str, dict] | None = None) -> dict:
                 link_depth += 1
             if child.type == "text" and not link_depth:
                 start = 0
-                for match in _LINK.finditer(child.content):
+                for match in _INLINE.finditer(child.content):
                     if match.start() > start:
                         children.append(Token("text", "", 0, content=child.content[start:match.start()]))
+                    if match.group(3):
+                        term = glossary.get(match.group(3))
+                        if term:
+                            opening = Token("button_open", "button", 1)
+                            opening.attrSet("type", "button")
+                            opening.attrSet("class", "glossary-term")
+                            opening.attrSet("data-definition", term["definition"])
+                            opening.attrSet("title", term["definition"])
+                            if term.get("article_slug") in pages:
+                                opening.attrSet("data-article", pages[term["article_slug"]]["slug"])
+                            children.extend((opening, Token("text", "", 0, content=term["term"]),
+                                             Token("button_close", "button", -1)))
+                        else:
+                            children.append(Token("text", "", 0, content=match.group(0)))
+                        start = match.end()
+                        continue
                     slug = match.group(1)
                     target = pages.get(slug)
                     label = match.group(2) or (target["title"] if target else slug.replace("-", " "))
@@ -97,12 +124,15 @@ def render_article(source: str, pages: dict[str, dict] | None = None) -> dict:
     html = bleach.clean(
         _MARKDOWN.renderer.render(blocks, _MARKDOWN.options, {}),
         tags=_TAGS,
-        attributes={"a": ["href", "title"], "span": ["class", "title"],
-                    "h2": ["id"], "h3": ["id"], "h4": ["id"]},
+        attributes={"a": ["href", "title", "id", "class"], "span": ["class", "title"],
+                    "h2": ["id"], "h3": ["id"], "h4": ["id"], "li": ["id", "class"],
+                    "sup": ["class"], "section": ["class"], "ol": ["class"], "hr": ["class"],
+                    "button": ["type", "class", "title", "data-definition", "data-article"]},
         protocols={"http", "https", "mailto"},
         strip=True,
     )
-    return {"body_html": html, "toc": toc}
+    words = sum(len(re.findall(r"\b[\w’']+\b", token.content)) for token in _text_tokens(source))
+    return {"body_html": html, "toc": toc, "reading_minutes": max(1, ceil(words / 200))}
 
 
 def render_markdown(source: str) -> str:

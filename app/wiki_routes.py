@@ -4,9 +4,11 @@ import difflib
 import hashlib
 import json
 import re
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -16,7 +18,7 @@ from PIL import Image, UnidentifiedImageError
 from app.auth import digest_secret, new_secret
 from app.config import Settings
 from app.db import Database
-from app.wiki_render import render_article, wiki_link_slugs
+from app.wiki_render import glossary_slugs, render_article, wiki_link_slugs
 from app.wiki_repository import WikiRepository
 
 SESSION_COOKIE = "fh_editor_session"
@@ -71,6 +73,12 @@ def _require_csrf(request: Request, account: dict[str, Any], submitted: str) -> 
 def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRouter:
     router = APIRouter()
 
+    def rendered(body: str, repo: WikiRepository) -> dict[str, Any]:
+        slugs = wiki_link_slugs(body)
+        terms = repo.glossary_terms(glossary_slugs(body))
+        links = slugs + [term["article_slug"] for term in terms.values() if term["article_slug"]]
+        return render_article(body, repo.public_link_targets(links), terms)
+
     @router.get("/v1/wiki/pages", tags=["wiki"])
     def wiki_pages(
         repo: WikiRepo, q: str | None = None, category: str | None = None
@@ -85,9 +93,35 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
                 return RedirectResponse(f"/v1/wiki/pages/{page['redirect_slug']}", status_code=308)
             raise HTTPException(status_code=404, detail="Wiki page not found")
         body = page.pop("body_markdown")
-        page.update(render_article(body, repo.public_link_targets(wiki_link_slugs(body))))
+        page.update(rendered(body, repo))
         page["backlinks"] = repo.backlinks(page["slug"])
         return page
+
+    @router.get("/v1/wiki/pages/{slug}/preview", tags=["wiki"])
+    def wiki_preview(slug: str, repo: WikiRepo) -> dict[str, Any]:
+        page = repo.get_published(slug)
+        if page and "redirect_slug" in page:
+            return RedirectResponse(f"/v1/wiki/pages/{page['redirect_slug']}/preview", status_code=308)
+        if not page:
+            raise HTTPException(status_code=404, detail="Wiki page not found")
+        return {"slug": page["slug"], "title": page["title"],
+                "summary": page["summary"],
+                "reading_minutes": rendered(page["body_markdown"], repo)["reading_minutes"]}
+
+    @router.get("/v1/wiki/pages/{slug}/revisions", tags=["wiki"])
+    def wiki_revisions_api(slug: str, repo: WikiRepo) -> list[dict[str, Any]]:
+        if not repo.get_published(slug) or not repo.page_information(slug):
+            raise HTTPException(status_code=404, detail="Wiki page not found")
+        return repo.published_revisions(slug)
+
+    @router.get("/v1/wiki/pages/{slug}/revisions/{number}", tags=["wiki"])
+    def wiki_revision_api(slug: str, number: int, repo: WikiRepo) -> dict[str, Any]:
+        revision = repo.published_revision(slug, number)
+        if not revision:
+            raise HTTPException(status_code=404, detail="Published revision not found")
+        body = revision.pop("body_markdown")
+        revision.update(rendered(body, repo))
+        return revision
 
     @router.get("/wiki", response_class=HTMLResponse, include_in_schema=False)
     def wiki_index(
@@ -104,7 +138,60 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
                 "categories": repo.list_public_categories(),
                 "q": q,
                 "selected_category": category or "",
+                "recent": repo.recent_pages(),
+                "improved": repo.recent_pages(improved=True),
+                "on_this_day": repo.on_this_day(
+                    datetime.now(ZoneInfo("America/Chicago")).month,
+                    datetime.now(ZoneInfo("America/Chicago")).day,
+                ),
             },
+        )
+
+    @router.get("/wiki/random", include_in_schema=False)
+    def wiki_random(repo: WikiRepo) -> RedirectResponse:
+        page = repo.random_page()
+        if not page:
+            raise HTTPException(status_code=404, detail="No published articles yet")
+        return RedirectResponse(f"/wiki/{page['slug']}", status_code=303)
+
+    @router.get("/wiki/series/{slug}", response_class=HTMLResponse, include_in_schema=False)
+    def wiki_series(request: Request, slug: str, repo: WikiRepo) -> HTMLResponse:
+        series = repo.public_series(slug)
+        if not series:
+            raise HTTPException(status_code=404, detail="Article series not found")
+        return templates.TemplateResponse(
+            request=request, name="wiki_series.html", context={"series": series},
+        )
+
+    @router.get("/wiki/{slug}/history", response_class=HTMLResponse, include_in_schema=False)
+    def wiki_history(request: Request, slug: str, repo: WikiRepo) -> HTMLResponse:
+        page = repo.page_information(slug)
+        if not page:
+            raise HTTPException(status_code=404, detail="Wiki page not found")
+        return templates.TemplateResponse(
+            request=request, name="wiki_history.html",
+            context={"page": page, "revisions": repo.published_revisions(slug)},
+        )
+
+    @router.get("/wiki/{slug}/revisions/{number}", response_class=HTMLResponse,
+                include_in_schema=False)
+    def wiki_revision(request: Request, slug: str, number: int, repo: WikiRepo) -> HTMLResponse:
+        revision = repo.published_revision(slug, number)
+        if not revision:
+            raise HTTPException(status_code=404, detail="Published revision not found")
+        revision.update(rendered(revision["body_markdown"], repo))
+        return templates.TemplateResponse(
+            request=request, name="wiki_revision.html", context={"page": revision},
+        )
+
+    @router.get("/wiki/{slug}/information", response_class=HTMLResponse,
+                include_in_schema=False)
+    def wiki_information(request: Request, slug: str, repo: WikiRepo) -> HTMLResponse:
+        page = repo.page_information(slug)
+        if not page:
+            raise HTTPException(status_code=404, detail="Wiki page not found")
+        return templates.TemplateResponse(
+            request=request, name="wiki_information.html", context={"page": page},
         )
 
     @router.get("/wiki/categories", response_class=HTMLResponse, include_in_schema=False)
@@ -128,17 +215,17 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         )
 
     @router.get("/wiki/{slug}", response_class=HTMLResponse, include_in_schema=False)
-    def wiki_page(request: Request, slug: str, repo: WikiRepo) -> HTMLResponse:
+    def wiki_page(request: Request, slug: str, repo: WikiRepo, view: str = "") -> HTMLResponse:
         page = repo.get_published(slug)
         if page and "redirect_slug" in page:
             return RedirectResponse(f"/wiki/{page['redirect_slug']}", status_code=308)
         if not page:
             raise HTTPException(status_code=404, detail="Wiki page not found")
-        page.update(render_article(page["body_markdown"],
-                                   repo.public_link_targets(wiki_link_slugs(page["body_markdown"]))))
+        page.update(rendered(page["body_markdown"], repo))
         page["backlinks"] = repo.backlinks(page["slug"])
         return templates.TemplateResponse(
-            request=request, name="wiki_page.html", context={"page": page}
+            request=request, name="wiki_page.html",
+            context={"page": page, "focus": view == "focus"},
         )
 
     @router.get("/media/{digest}/{filename}", include_in_schema=False)
@@ -249,6 +336,7 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
                 "account": account,
                 "page": None,
                 "categories": repo.list_editor_categories(),
+                "series_list": repo.list_series(),
                 "csrf_token": request.cookies.get(CSRF_COOKIE, ""),
             },
         )
@@ -267,6 +355,12 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         citation_ids: Annotated[str, Form()] = "",
         category_names: Annotated[str, Form()] = "",
         image_data: Annotated[str, Form()] = "",
+        series_slug: Annotated[str, Form()] = "",
+        series_position: Annotated[int | None, Form()] = None,
+        related_slugs: Annotated[str, Form()] = "",
+        is_disambiguation: Annotated[bool, Form()] = False,
+        event_month: Annotated[int | None, Form()] = None,
+        event_day: Annotated[int | None, Form()] = None,
     ) -> RedirectResponse:
         account = _require_account(request, repo)
         _require_csrf(request, account, csrf_token)
@@ -278,6 +372,9 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
             user_id=account["account_id"], entity_public_ids=_csv(entity_public_ids),
             citation_ids=_csv(citation_ids),
             category_names=_csv(category_names), images=_images(image_data),
+            series_slug=series_slug, series_position=series_position,
+            related_slugs=_csv(related_slugs), is_disambiguation=is_disambiguation,
+            event_month=event_month, event_day=event_day,
         )
         return RedirectResponse(f"/editor/pages/{page_id}", status_code=303)
 
@@ -294,8 +391,7 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         return templates.TemplateResponse(
             request=request,
             name="editor_preview.html",
-            context={"title": title, **render_article(
-                body_markdown, repo.public_link_targets(wiki_link_slugs(body_markdown)))},
+            context={"title": title, **rendered(body_markdown, repo)},
         )
 
     @router.get("/editor/pages/{page_id}", response_class=HTMLResponse, include_in_schema=False)
@@ -311,6 +407,7 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
                 "account": account,
                 "page": page,
                 "categories": repo.list_editor_categories(),
+                "series_list": repo.list_series(),
                 "csrf_token": request.cookies.get(CSRF_COOKIE, ""),
             },
         )
@@ -329,6 +426,12 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         citation_ids: Annotated[str, Form()] = "",
         category_names: Annotated[str, Form()] = "",
         image_data: Annotated[str, Form()] = "",
+        series_slug: Annotated[str, Form()] = "",
+        series_position: Annotated[int | None, Form()] = None,
+        related_slugs: Annotated[str, Form()] = "",
+        is_disambiguation: Annotated[bool, Form()] = False,
+        event_month: Annotated[int | None, Form()] = None,
+        event_day: Annotated[int | None, Form()] = None,
     ) -> RedirectResponse:
         account = _require_account(request, repo)
         _require_csrf(request, account, csrf_token)
@@ -339,6 +442,9 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
             change_note=change_note.strip(), user_id=account["account_id"],
             entity_public_ids=_csv(entity_public_ids), citation_ids=_csv(citation_ids),
             category_names=_csv(category_names), images=_images(image_data),
+            series_slug=series_slug, series_position=series_position,
+            related_slugs=_csv(related_slugs), is_disambiguation=is_disambiguation,
+            event_month=event_month, event_day=event_day,
         )
         return RedirectResponse(f"/editor/pages/{page_id}", status_code=303)
 
@@ -351,6 +457,65 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
     def wiki_picker(request: Request, repo: WikiRepo, q: str = "") -> list[dict[str, Any]]:
         _require_account(request, repo)
         return repo.search_wiki_pages(q.strip()) if q.strip() else []
+
+    @router.get("/editor/series", response_class=HTMLResponse, include_in_schema=False)
+    def editor_series(request: Request, repo: WikiRepo) -> HTMLResponse:
+        account = _require_account(request, repo)
+        return templates.TemplateResponse(request=request, name="editor_series.html",
+                                          context={"series_list": repo.list_series(), "account": account,
+                                                   "csrf_token": request.cookies.get(CSRF_COOKIE, "")})
+
+    @router.post("/editor/series", include_in_schema=False)
+    def editor_create_series(request: Request, repo: WikiRepo,
+                             csrf_token: Annotated[str, Form()], slug: Annotated[str, Form()],
+                             title: Annotated[str, Form()], description: Annotated[str, Form()] = "") -> RedirectResponse:
+        account = _require_account(request, repo)
+        _require_csrf(request, account, csrf_token)
+        if account["role"] not in {"owner", "editor"}:
+            raise HTTPException(status_code=403, detail="Editor role required")
+        repo.create_series(_slug(slug), title.strip(), description.strip())
+        return RedirectResponse("/editor/series", status_code=303)
+
+    @router.get("/editor/glossary", response_class=HTMLResponse, include_in_schema=False)
+    def editor_glossary(request: Request, repo: WikiRepo) -> HTMLResponse:
+        account = _require_account(request, repo)
+        return templates.TemplateResponse(request=request, name="editor_glossary.html",
+                                          context={"terms": repo.list_glossary(), "account": account,
+                                                   "csrf_token": request.cookies.get(CSRF_COOKIE, "")})
+
+    @router.post("/editor/glossary", include_in_schema=False)
+    def editor_save_glossary(request: Request, repo: WikiRepo,
+                             csrf_token: Annotated[str, Form()], slug: Annotated[str, Form()],
+                             term: Annotated[str, Form()], definition: Annotated[str, Form()],
+                             article_slug: Annotated[str, Form()] = "",
+                             is_published: Annotated[bool, Form()] = False) -> RedirectResponse:
+        account = _require_account(request, repo)
+        _require_csrf(request, account, csrf_token)
+        if account["role"] != "owner":
+            raise HTTPException(status_code=403, detail="Owner role required")
+        repo.save_glossary(_slug(slug), term.strip(), definition.strip(),
+                           _slug(article_slug) if article_slug.strip() else None, is_published)
+        return RedirectResponse("/editor/glossary", status_code=303)
+
+    @router.post("/editor/pages/{page_id}/redirects", include_in_schema=False)
+    def editor_add_redirect(request: Request, page_id: str, repo: WikiRepo,
+                            csrf_token: Annotated[str, Form()], slug: Annotated[str, Form()]) -> RedirectResponse:
+        account = _require_account(request, repo)
+        _require_csrf(request, account, csrf_token)
+        if account["role"] != "owner":
+            raise HTTPException(status_code=403, detail="Owner role required")
+        repo.add_redirect(page_id, _slug(slug), account["account_id"])
+        return RedirectResponse(f"/editor/pages/{page_id}", status_code=303)
+
+    @router.post("/editor/pages/{page_id}/redirects/{slug}/delete", include_in_schema=False)
+    def editor_delete_redirect(request: Request, page_id: str, slug: str,
+                               repo: WikiRepo, csrf_token: Annotated[str, Form()]) -> RedirectResponse:
+        account = _require_account(request, repo)
+        _require_csrf(request, account, csrf_token)
+        if account["role"] != "owner":
+            raise HTTPException(status_code=403, detail="Owner role required")
+        repo.delete_redirect(page_id, slug)
+        return RedirectResponse(f"/editor/pages/{page_id}", status_code=303)
 
     @router.get("/editor/pickers/citations", include_in_schema=False)
     def citation_picker(request: Request, repo: WikiRepo, q: str = "") -> list[dict[str, Any]]:

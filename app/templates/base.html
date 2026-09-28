@@ -6,7 +6,7 @@
     <title>{% block title %}Food History{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/app.css') }}">
   </head>
-  <body>
+  <body class="{% block body_class %}{% endblock %}">
     <header class="site-header">
       <a class="brand" href="/">Food History</a>
       <nav aria-label="Primary navigation">

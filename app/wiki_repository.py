@@ -44,6 +44,194 @@ class WikiRepository:
             "SELECT slug, name, description FROM wiki_category ORDER BY name"
         )
 
+    def list_series(self) -> list[dict[str, Any]]:
+        return self.db.fetch_all("SELECT slug, title, description FROM wiki_series ORDER BY title")
+
+    def create_series(self, slug: str, title: str, description: str) -> None:
+        with self.db.connection() as connection:
+            connection.execute(
+                "INSERT INTO wiki_series (series_id, slug, title, description) VALUES (%s, %s, %s, %s)",
+                (uuid4(), slug, title, description),
+            )
+
+    def list_redirects(self, page_id: UUID | str) -> list[dict[str, Any]]:
+        return self.db.fetch_all(
+            "SELECT source_slug, created_at FROM wiki_redirect WHERE page_id = %s ORDER BY source_slug",
+            (page_id,),
+        )
+
+    def add_redirect(self, page_id: UUID | str, slug: str, user_id: UUID | str) -> None:
+        with self.db.connection() as connection:
+            page = connection.execute("SELECT slug FROM wiki_page WHERE page_id = %s", (page_id,)).fetchone()
+            if not page:
+                raise ValueError("Wiki page not found")
+            if slug == page["slug"] or connection.execute(
+                "SELECT 1 FROM wiki_page WHERE slug = %s", (slug,)
+            ).fetchone():
+                raise ValueError("Redirect slug is already used by a page")
+            if connection.execute(
+                "SELECT 1 FROM wiki_redirect WHERE source_slug = %s", (slug,)
+            ).fetchone():
+                raise ValueError("Redirect slug is already in use")
+            connection.execute(
+                "INSERT INTO wiki_redirect (source_slug, page_id, created_by_user_id) VALUES (%s, %s, %s)",
+                (slug, page_id, user_id),
+            )
+
+    def delete_redirect(self, page_id: UUID | str, slug: str) -> None:
+        with self.db.connection() as connection:
+            result = connection.execute(
+                "DELETE FROM wiki_redirect WHERE page_id = %s AND source_slug = %s RETURNING source_slug",
+                (page_id, slug),
+            ).fetchone()
+            if not result:
+                raise ValueError("Redirect not found")
+
+    def recent_pages(self, improved: bool = False, limit: int = 8) -> list[dict[str, Any]]:
+        return self.db.fetch_all(
+            """
+            SELECT p.slug, p.title, p.summary, max(e.published_at) AS published_at
+            FROM public_wiki_page p JOIN public_wiki_publication e ON e.page_id = p.page_id
+            GROUP BY p.page_id, p.slug, p.title, p.summary
+            HAVING (count(*) > 1) = %s
+            ORDER BY published_at DESC, p.slug LIMIT %s
+            """,
+            (improved, limit),
+        )
+
+    def on_this_day(self, month: int, day: int, limit: int = 8) -> list[dict[str, Any]]:
+        return self.db.fetch_all(
+            """
+            SELECT p.slug, p.title, p.summary FROM public_wiki_page p
+            JOIN public_wiki_revision_metadata m ON m.revision_id = p.revision_id
+            WHERE m.event_month = %s AND m.event_day = %s ORDER BY p.title LIMIT %s
+            """,
+            (month, day, limit),
+        )
+
+    def random_page(self) -> dict[str, Any] | None:
+        return self.db.fetch_one("SELECT slug FROM public_wiki_page ORDER BY random() LIMIT 1")
+
+    def published_revisions(self, slug: str) -> list[dict[str, Any]]:
+        return self.db.fetch_all(
+            """
+            SELECT revision_number, title, published_at,
+                   revision_number = (SELECT revision_number FROM public_wiki_page WHERE slug = %s)
+                     AS is_current
+            FROM public_wiki_publication WHERE slug = %s
+            ORDER BY published_at DESC, revision_number DESC
+            """,
+            (slug, slug),
+        )
+
+    def published_revision(self, slug: str, number: int) -> dict[str, Any] | None:
+        return self.db.fetch_one(
+            "SELECT slug, revision_number, title, summary, body_markdown, published_at "
+            "FROM public_wiki_publication WHERE slug = %s AND revision_number = %s",
+            (slug, number),
+        )
+
+    def page_information(self, slug: str) -> dict[str, Any] | None:
+        page = self.db.fetch_one(
+            """SELECT p.slug, p.public_id, p.title, p.created_at AS revision_created_at,
+                      (SELECT min(e.published_at) FROM public_wiki_publication e WHERE e.page_id = p.page_id)
+                        AS first_published_at
+               FROM public_wiki_page p WHERE p.slug = %s""", (slug,),
+        )
+        if page:
+            page["redirects"] = self.db.fetch_all(
+                "SELECT source_slug FROM public_wiki_redirect WHERE target_slug = %s ORDER BY source_slug",
+                (slug,),
+            )
+            page["revision_count"] = len(self.published_revisions(slug))
+            page["backlink_count"] = len(self.backlinks(slug))
+        return page
+
+    def series_navigation(self, revision_id: UUID | str) -> list[dict[str, Any]]:
+        series = self.db.fetch_all(
+            "SELECT slug, title, description, position FROM public_wiki_revision_series "
+            "WHERE revision_id = %s ORDER BY title", (revision_id,),
+        )
+        for item in series:
+            members = self.db.fetch_all(
+                """SELECT p.slug, p.title, p.revision_id, m.position FROM public_wiki_revision_series m
+                   JOIN public_wiki_page p ON p.revision_id = m.revision_id
+                   WHERE m.slug = %s ORDER BY m.position, p.title""", (item["slug"],),
+            )
+            item["members"] = members
+            current = next((index for index, member in enumerate(members)
+                            if member["revision_id"] == revision_id), None)
+            for member in members:
+                member.pop("revision_id")
+            item["previous"] = members[current - 1] if current is not None and current > 0 else None
+            item["next"] = members[current + 1] if current is not None and current + 1 < len(members) else None
+        return series
+
+    def public_series(self, slug: str) -> dict[str, Any] | None:
+        series = self.db.fetch_one(
+            "SELECT slug, title, description FROM public_wiki_revision_series WHERE slug = %s LIMIT 1",
+            (slug,),
+        )
+        if series:
+            series["members"] = self.db.fetch_all(
+                """SELECT p.slug, p.title, p.summary, m.position
+                   FROM public_wiki_revision_series m JOIN public_wiki_page p
+                     ON p.revision_id = m.revision_id
+                   WHERE m.slug = %s ORDER BY m.position, p.title""", (slug,),
+            )
+        return series
+
+    def related_pages(self, revision_id: UUID | str, slug: str,
+                      suggest: bool = True) -> list[dict[str, Any]]:
+        curated = self.db.fetch_all(
+            """
+            SELECT p.slug, p.title, p.summary FROM public_wiki_revision_related r
+            JOIN public_wiki_page p ON p.slug = r.target_slug
+            WHERE r.revision_id = %s AND p.slug <> %s ORDER BY r.sequence LIMIT 8
+            """, (revision_id, slug),
+        )
+        if len(curated) >= 8 or not suggest:
+            return curated
+        candidates = self.db.fetch_all(
+            """
+            SELECT p.slug, p.title, p.summary, count(*) AS shared_categories
+            FROM public_wiki_revision_category mine
+            JOIN public_wiki_revision_category other ON other.slug = mine.slug
+            JOIN public_wiki_page p ON p.revision_id = other.revision_id
+            WHERE mine.revision_id = %s AND p.slug <> %s
+            GROUP BY p.slug, p.title, p.summary
+            ORDER BY shared_categories DESC, p.title LIMIT 16
+            """, (revision_id, slug),
+        )
+        seen = {slug, *(item["slug"] for item in curated)}
+        return curated + [
+            {key: item[key] for key in ("slug", "title", "summary")}
+            for item in candidates if item["slug"] not in seen
+        ][:8 - len(curated)]
+
+    def glossary_terms(self, slugs: list[str]) -> dict[str, dict[str, Any]]:
+        if not slugs:
+            return {}
+        rows = self.db.fetch_all(
+            "SELECT slug, term, definition, article_slug FROM public_wiki_glossary WHERE slug = ANY(%s)",
+            (slugs,),
+        )
+        return {row["slug"]: row for row in rows}
+
+    def list_glossary(self) -> list[dict[str, Any]]:
+        return self.db.fetch_all("SELECT slug, term, definition, article_slug, is_published FROM wiki_glossary ORDER BY term")
+
+    def save_glossary(self, slug: str, term: str, definition: str, article_slug: str | None,
+                      is_published: bool) -> None:
+        with self.db.connection() as connection:
+            connection.execute(
+                """INSERT INTO wiki_glossary (slug, term, definition, article_slug, is_published)
+                   VALUES (%s, %s, %s, %s, %s) ON CONFLICT (slug) DO UPDATE SET
+                   term = excluded.term, definition = excluded.definition,
+                   article_slug = excluded.article_slug, is_published = excluded.is_published""",
+                (slug, term, definition, article_slug, is_published),
+            )
+
     def search_wiki_pages(self, q: str, limit: int = 12) -> list[dict[str, Any]]:
         return self.db.fetch_all(
             "SELECT slug, title FROM public_wiki_page "
@@ -129,6 +317,15 @@ class WikiRepository:
             WHERE revision_id = %s ORDER BY sequence
             """,
             (page["revision_id"],),
+        )
+        page["series"] = self.series_navigation(page["revision_id"])
+        page["metadata"] = self.db.fetch_one(
+            "SELECT is_disambiguation, event_month, event_day "
+            "FROM public_wiki_revision_metadata WHERE revision_id = %s",
+            (page["revision_id"],),
+        ) or {"is_disambiguation": False, "event_month": None, "event_day": None}
+        page["related"] = self.related_pages(
+            page["revision_id"], slug, suggest=not page["metadata"]["is_disambiguation"]
         )
         page.pop("page_id")
         page.pop("revision_id")
@@ -263,7 +460,58 @@ class WikiRepository:
             """,
             (revision_id,),
         )
+        page["series_membership"] = self.db.fetch_one(
+            "SELECT s.slug, m.position FROM wiki_revision_series m "
+            "JOIN wiki_series s ON s.series_id = m.series_id WHERE m.revision_id = %s",
+            (revision_id,),
+        )
+        page["related_slugs"] = [row["target_slug"] for row in self.db.fetch_all(
+            "SELECT target_slug FROM wiki_revision_related WHERE revision_id = %s ORDER BY sequence",
+            (revision_id,),
+        )]
+        page["metadata"] = self.db.fetch_one(
+            "SELECT is_disambiguation, event_month, event_day FROM wiki_revision_metadata "
+            "WHERE revision_id = %s", (revision_id,),
+        ) or {"is_disambiguation": False, "event_month": None, "event_day": None}
+        page["redirects"] = self.list_redirects(page_id)
         return page
+
+    @staticmethod
+    def _attach_reading_metadata(connection: Any, revision_id: UUID, *,
+                                 series_slug: str, series_position: int | None,
+                                 related_slugs: list[str], is_disambiguation: bool,
+                                 event_month: int | None, event_day: int | None) -> None:
+        if bool(event_month) != bool(event_day):
+            raise ValueError("Both event month and day are required")
+        if event_month is not None:
+            try:
+                datetime(2000, event_month, event_day)
+            except (ValueError, TypeError) as exc:
+                raise ValueError("Invalid historical month and day") from exc
+        connection.execute(
+            "INSERT INTO wiki_revision_metadata (revision_id, is_disambiguation, event_month, event_day) "
+            "VALUES (%s, %s, %s, %s)",
+            (revision_id, is_disambiguation, event_month, event_day),
+        )
+        if series_slug:
+            series = connection.execute(
+                "SELECT series_id FROM wiki_series WHERE slug = %s", (series_slug,)
+            ).fetchone()
+            if not series or not series_position or series_position < 1:
+                raise ValueError("Choose a valid series and positive position")
+            connection.execute(
+                "INSERT INTO wiki_revision_series (revision_id, series_id, position) VALUES (%s, %s, %s)",
+                (revision_id, series["series_id"], series_position),
+            )
+        elif series_position:
+            raise ValueError("Series position requires a series")
+        for sequence, slug in enumerate(dict.fromkeys(related_slugs), 1):
+            if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
+                raise ValueError("Related articles must use valid page slugs")
+            connection.execute(
+                "INSERT INTO wiki_revision_related (revision_id, target_slug, sequence) "
+                "VALUES (%s, %s, %s)", (revision_id, slug, sequence),
+            )
 
     def _attach_links(
         self,
@@ -382,10 +630,20 @@ class WikiRepository:
         citation_ids: list[str],
         category_names: list[str],
         images: list[dict[str, str]],
+        series_slug: str = "",
+        series_position: int | None = None,
+        related_slugs: list[str] | None = None,
+        is_disambiguation: bool = False,
+        event_month: int | None = None,
+        event_day: int | None = None,
     ) -> str:
         page_id, revision_id = uuid4(), uuid4()
         public_id = f"FH-WIKI-{str(page_id).split('-')[0].upper()}"
         with self.db.connection() as connection:
+            if connection.execute(
+                "SELECT 1 FROM wiki_redirect WHERE source_slug = %s", (slug,)
+            ).fetchone():
+                raise ValueError("Page slug is reserved by a redirect")
             connection.execute(
                 "INSERT INTO wiki_page (page_id, public_id, slug, created_by_user_id) "
                 "VALUES (%s, %s, %s, %s)",
@@ -401,6 +659,11 @@ class WikiRepository:
                 category_names, images,
             )
             self._attach_wiki_links(connection, revision_id, body_markdown)
+            self._attach_reading_metadata(
+                connection, revision_id, series_slug=series_slug, series_position=series_position,
+                related_slugs=related_slugs or [], is_disambiguation=is_disambiguation,
+                event_month=event_month, event_day=event_day,
+            )
             connection.execute(
                 "UPDATE wiki_page SET current_revision_id = %s WHERE page_id = %s",
                 (revision_id, page_id),
@@ -420,6 +683,12 @@ class WikiRepository:
         citation_ids: list[str],
         category_names: list[str],
         images: list[dict[str, str]],
+        series_slug: str = "",
+        series_position: int | None = None,
+        related_slugs: list[str] | None = None,
+        is_disambiguation: bool = False,
+        event_month: int | None = None,
+        event_day: int | None = None,
     ) -> None:
         revision_id = uuid4()
         with self.db.connection() as connection:
@@ -443,6 +712,11 @@ class WikiRepository:
                 category_names, images,
             )
             self._attach_wiki_links(connection, revision_id, body_markdown)
+            self._attach_reading_metadata(
+                connection, revision_id, series_slug=series_slug, series_position=series_position,
+                related_slugs=related_slugs or [], is_disambiguation=is_disambiguation,
+                event_month=event_month, event_day=event_day,
+            )
             connection.execute(
                 "UPDATE wiki_page SET current_revision_id = %s, status = 'draft' WHERE page_id = %s",
                 (revision_id, page_id),
@@ -487,6 +761,11 @@ class WikiRepository:
             ).fetchone()
             if not result:
                 raise ValueError("Only an approved revision can be published")
+            connection.execute(
+                "INSERT INTO wiki_publication (revision_id, page_id) "
+                "SELECT published_revision_id, page_id FROM wiki_page WHERE page_id = %s "
+                "ON CONFLICT (revision_id) DO NOTHING", (page_id,),
+            )
             connection.execute(
                 """
                 UPDATE entity SET visibility = 'public', record_status = 'published'
