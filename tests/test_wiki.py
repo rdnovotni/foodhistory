@@ -1,6 +1,8 @@
+from io import BytesIO
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from app.auth import digest_secret, hash_password, verify_password
 from app.config import Settings
@@ -16,9 +18,18 @@ class FakeWikiRepository:
         self.password_hash = hash_password("a sufficiently long password")
         self.sessions = {}
         self.created = None
+        self.registered_media = None
 
-    def list_published(self):
+    def list_published(self, q=None, category=None):
+        if q == "missing" or category == "missing":
+            return []
         return [{"public_id": "FH-WIKI-TEST", "slug": "apple-pie", "title": "Apple pie", "summary": "History."}]
+
+    def list_public_categories(self):
+        return [{"slug": "desserts", "name": "Desserts", "description": None, "page_count": 1}]
+
+    def list_editor_categories(self):
+        return self.list_public_categories()
 
     def get_published(self, slug):
         if slug != "apple-pie":
@@ -27,7 +38,7 @@ class FakeWikiRepository:
             "public_id": "FH-WIKI-TEST", "slug": slug, "revision_number": 2,
             "title": "Apple pie", "summary": "History.",
             "body_markdown": "## Origins\n\nA researched article.",
-            "entities": [], "citations": [],
+            "entities": [], "citations": [], "categories": [], "images": [],
         }
 
     def authenticate(self, username, password):
@@ -50,14 +61,44 @@ class FakeWikiRepository:
     def list_editor_pages(self):
         return []
 
+    def get_editor_page(self, page_id):
+        return {
+            "page_id": page_id, "title": "Apple pie", "status": "draft",
+            "revision_number": 2, "summary": "History.", "body_markdown": "New text",
+            "entity_public_ids": [], "citation_ids": [], "category_names": [],
+            "images": [], "reviews": [],
+        }
+
+    def list_revisions(self, page_id):
+        return [
+            {"revision_number": 2, "title": "Apple pie", "summary": None, "change_note": "Rewrite", "created_at": "now", "author": "Test Editor", "is_published": False},
+            {"revision_number": 1, "title": "Apple pie", "summary": None, "change_note": "Start", "created_at": "before", "author": "Test Editor", "is_published": True},
+        ]
+
+    def get_revision(self, page_id, number):
+        return {"revision_number": number, "body_markdown": "New text" if number == 2 else "Old text"}
+
     def create_page(self, **values):
         self.created = values
         return "13a98a58-2c65-4ad8-86c6-31bd95c2ee13"
 
+    def search_entities(self, q):
+        return [{"public_id": "FH-TEST", "label": "Apple pie", "type_code": "ENT.CUL.FOOD"}]
 
-def make_client(mode="public"):
+    def search_citations(self, q):
+        return [{"citation_id": str(uuid4()), "source_label": "Test source", "locator_text": "p. 1"}]
+
+    def search_media(self, q):
+        return []
+
+    def register_media(self, **values):
+        self.registered_media = values
+        return {"public_id": "FH-DIG-TEST", "label": values["original_filename"], "storage_uri": values["storage_uri"]}
+
+
+def make_client(mode="public", media_root="var/media"):
     wiki = FakeWikiRepository()
-    app = create_app(Settings(database_url="unused", app_mode=mode, editor_cookie_secure=False))
+    app = create_app(Settings(database_url="unused", app_mode=mode, editor_cookie_secure=False, media_root=str(media_root)))
     app.dependency_overrides[get_repository] = lambda: FakeRepository()
     app.dependency_overrides[get_wiki_repository] = lambda: wiki
     return TestClient(app), wiki
@@ -80,6 +121,9 @@ def test_public_wiki_reads_only_published_content():
     assert response.status_code == 200
     assert "<h2>Origins</h2>" in response.json()["body_html"]
     assert client.get("/v1/wiki/pages/missing").status_code == 404
+    assert "A researched article" in client.get("/wiki/apple-pie").text
+    assert "Desserts" in client.get("/wiki/categories").text
+    assert "Apple pie" in client.get("/wiki/category/desserts").text
 
 
 def test_public_mode_does_not_register_editor_routes():
@@ -114,3 +158,25 @@ def test_editor_can_sign_in_and_create_draft_with_csrf_protection():
     )
     assert created.status_code == 303
     assert wiki.created["entity_public_ids"] == ["FH-TEST"]
+    assert wiki.created["category_names"] == []
+
+
+def test_editor_picker_and_validated_image_upload(tmp_path):
+    client, wiki = make_client("editorial", tmp_path)
+    client.post(
+        "/editor/login",
+        data={"username": "editor", "password": "a sufficiently long password"},
+    )
+    assert client.get("/editor/pickers/entities", params={"q": "apple"}).json()[0]["public_id"] == "FH-TEST"
+    assert "Related catalogue records" in client.get("/editor/pages/new").text
+    assert "Revision 1" in client.get("/editor/pages/test/history").text
+    buffer = BytesIO()
+    Image.new("RGB", (4, 3), "red").save(buffer, format="PNG")
+    response = client.post(
+        "/editor/media",
+        data={"csrf_token": client.cookies.get("fh_editor_csrf")},
+        files={"upload": ("test.png", buffer.getvalue(), "image/png")},
+    )
+    assert response.status_code == 200
+    assert wiki.registered_media["width_px"] == 4
+    assert (tmp_path / wiki.registered_media["sha256"] / "asset.png").is_file()

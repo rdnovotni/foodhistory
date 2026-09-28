@@ -90,7 +90,7 @@ sudo systemctl enable --now food-history-backup.timer
 sudo systemctl enable --now food-history-health.timer
 ```
 
-Backups are PostgreSQL custom-format archives under `backups/`, retained locally for 14 days by default. Override `BACKUP_DIR` to write directly to a mounted backup disk. A local backup is not sufficient: copy it to encrypted storage outside the computer after each run.
+Backups are paired PostgreSQL custom-format archives and content-addressed media archives under `backups/`, retained locally for 14 days by default. Override `BACKUP_DIR` to write directly to a mounted backup disk. Keep each `.dump` beside its matching `.media.tar.gz`. A local backup is not sufficient: copy both files to encrypted storage outside the computer after each run.
 
 Run and inspect a backup:
 
@@ -100,7 +100,7 @@ systemctl list-timers 'food-history-*'
 journalctl -u food-history-backup.service
 ```
 
-Test restoration before importing irreplaceable records. Restoration first creates a safety backup, stops the web container, replaces database objects from the selected archive, and restarts the web container:
+Test restoration before importing irreplaceable records. Restoration requires the paired media archive, first creates a safety backup, stops the web container, replaces database objects and the managed-media volume, and restarts the web container:
 
 ```console
 CONFIRM_RESTORE=RESTORE_FOOD_HISTORY ops/restore.sh backups/food_history_TIMESTAMP.dump

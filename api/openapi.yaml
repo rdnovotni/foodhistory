@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Food History API
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Phase 1A-C API contract for the Food History knowledge base, menu archive,
     bibliographic catalogue, material-culture catalogue, and evidence graph.
@@ -120,6 +120,9 @@ paths:
   /wiki/pages:
     get:
       summary: List published wiki articles
+      parameters:
+        - {name: q, in: query, schema: {type: string}, description: Full-text article search}
+        - {name: category, in: query, schema: {type: string}, description: Category slug}
       responses:
         '200':
           description: Published articles
@@ -204,7 +207,7 @@ components:
       allOf:
         - {$ref: '#/components/schemas/WikiPageSummary'}
         - type: object
-          required: [revision_number, body_html, entities, citations]
+          required: [revision_number, body_html, entities, citations, categories, images]
           properties:
             revision_number: {type: integer, minimum: 1}
             body_html: {type: string, description: Sanitized server-rendered article HTML}
@@ -216,6 +219,28 @@ components:
                   - type: object
                     properties: {relationship: {type: string, enum: [subject, mentions]}}
             citations: {type: array, items: {$ref: '#/components/schemas/WikiCitation'}}
+            categories:
+              type: array
+              items:
+                type: object
+                required: [slug, name]
+                properties:
+                  slug: {type: string}
+                  name: {type: string}
+            images:
+              type: array
+              items:
+                type: object
+                required: [public_id, storage_uri, placement, alt_text]
+                properties:
+                  public_id: {type: string}
+                  storage_uri: {type: string}
+                  mime_type: {type: [string, 'null']}
+                  width_px: {type: [integer, 'null']}
+                  height_px: {type: [integer, 'null']}
+                  placement: {type: string, enum: [lead, gallery, inline]}
+                  alt_text: {type: string}
+                  caption: {type: [string, 'null']}
     TermRef:
       type: object
       required: [code, label]

@@ -1,5 +1,15 @@
 # Changelog
 
+## Wiki authoring v1.4 — 2026-09-28
+
+- Added private searchable pickers for canonical entities, citations, and managed images.
+- Added validated, content-addressed image uploads with required alternative text and revision-specific presentation metadata.
+- Added revision-specific categories, public category browsing, and PostgreSQL full-text article search.
+- Added complete revision history and side-by-side Markdown comparison.
+- Added persistent shared media storage plus paired database/media backup and restore operations.
+- Added published-only category and media views while revoking draft/media-link tables from the public database role.
+- Added citation-first starter briefs for the first three editorial articles without inventing unsourced historical claims.
+
 ## Wiki foundation v1.3 — 2026-09-28
 
 - Added private editorial accounts with scrypt password hashes, opaque expiring sessions, role checks, and CSRF protection.

@@ -5,9 +5,11 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.conninfo import make_conninfo
 
+from app.auth import hash_password
 from app.db import Database
 from app.main import create_app
 from app.repository import Repository
+from app.wiki_repository import WikiRepository
 
 pytestmark = pytest.mark.integration
 
@@ -101,11 +103,55 @@ def test_wiki_schema_and_public_database_role_are_read_only():
     with psycopg.connect(reader_url) as connection:
         connection.execute("SET search_path TO food_history, public")
         assert connection.execute("SELECT count(*) FROM public_wiki_page").fetchone()[0] == 0
+        assert connection.execute("SELECT count(*) FROM public_wiki_category").fetchone()[0] == 0
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
-            connection.execute("SELECT * FROM editor_account")
+            connection.execute("SELECT * FROM wiki_revision_image")
     with psycopg.connect(reader_url) as connection:
         connection.execute("SET search_path TO food_history, public")
         with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
             connection.execute(
                 "INSERT INTO schema_version (version, description) VALUES ('forbidden', 'test')"
             )
+
+
+def test_wiki_revision_category_review_and_publication_workflow(repository):
+    wiki = WikiRepository(repository.db)
+    account_id = wiki.create_account(
+        "integration-owner",
+        "Integration Owner",
+        hash_password("integration test password"),
+        "owner",
+    )
+    entity = repository.list_entities(limit=1)["items"][0]
+    page_id = wiki.create_page(
+        slug="integration-article",
+        title="Integration article",
+        summary="A workflow fixture.",
+        body_markdown="# First revision",
+        change_note="Initial draft",
+        user_id=account_id,
+        entity_public_ids=[entity["public_id"]],
+        citation_ids=[],
+        category_names=["Methods"],
+        images=[],
+    )
+    wiki.add_revision(
+        page_id,
+        title="Integration article",
+        summary="A workflow fixture.",
+        body_markdown="# Second revision",
+        change_note="Clarified heading",
+        user_id=account_id,
+        entity_public_ids=[entity["public_id"]],
+        citation_ids=[],
+        category_names=["Methods"],
+        images=[],
+    )
+    assert len(wiki.list_revisions(page_id)) == 2
+    wiki.review(page_id, "submitted", "Ready", account_id)
+    wiki.review(page_id, "approved", "Approved", account_id)
+    wiki.publish(page_id)
+    published = wiki.get_published("integration-article")
+    assert published["revision_number"] == 2
+    assert published["categories"][0]["name"] == "Methods"
+    assert wiki.list_published(q="Second")[0]["slug"] == "integration-article"

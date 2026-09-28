@@ -56,6 +56,8 @@ def test_production_compose_is_private_by_default_and_examples_are_disabled():
     assert services["web"]["environment"]["APP_MODE"] == "editorial"
     assert services["public_web"]["profiles"] == ["public"]
     assert services["public_web"]["environment"]["APP_MODE"] == "public"
+    assert services["web"]["volumes"] == ["food_history_media:/media"]
+    assert services["public_web"]["volumes"] == ["food_history_media:/media:ro"]
     assert "PUBLIC_DATABASE_USER" in services["public_web"]["environment"]["DATABASE_URL"]
     assert "POSTGRES_USER" in services["web"]["environment"]["DATABASE_URL"]
     assert "edge" not in services["web"]["networks"]
@@ -79,3 +81,13 @@ def test_public_proxy_enforces_https_security_headers():
     assert "reverse_proxy web:8000" not in caddyfile
     assert "Strict-Transport-Security" in caddyfile
     assert "X-Content-Type-Options" in caddyfile
+
+
+def test_operations_pair_database_and_media_backups():
+    backup = (ROOT / "ops" / "backup.sh").read_text(encoding="utf-8")
+    restore = (ROOT / "ops" / "restore.sh").read_text(encoding="utf-8")
+
+    assert "food_history_media:/source:ro" in backup
+    assert ".media.tar.gz" in backup
+    assert "food_history_media:/target" in restore
+    assert "Missing paired media archive" in restore

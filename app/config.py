@@ -12,6 +12,8 @@ class Settings:
     app_mode: str = "public"
     editor_session_hours: int = 12
     editor_cookie_secure: bool = True
+    media_root: str = "var/media"
+    media_max_bytes: int = 10 * 1024 * 1024
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -29,4 +31,6 @@ class Settings:
             editor_session_hours=int(os.getenv("EDITOR_SESSION_HOURS", "12")),
             editor_cookie_secure=os.getenv("EDITOR_COOKIE_SECURE", "true").lower()
             in {"1", "true", "yes"},
+            media_root=os.getenv("MEDIA_ROOT", "var/media"),
+            media_max_bytes=int(os.getenv("MEDIA_MAX_BYTES", str(10 * 1024 * 1024))),
         )

@@ -39,6 +39,15 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  media_setup:
+    image: alpine:3.22
+    command: ["sh", "-c", "chown 10001:10001 /media && chmod 750 /media"]
+    volumes:
+      - food_history_media:/media
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+
   web:
     build:
       context: .
@@ -48,10 +57,14 @@ services:
       PUBLIC_BASE_URL: ${SITE_BASE_URL:?set SITE_BASE_URL in .env.production}
       APP_MODE: editorial
       EDITOR_COOKIE_SECURE: ${EDITOR_COOKIE_SECURE:-true}
+      MEDIA_ROOT: /media
+      MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-10485760}
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
       setup:
+        condition: service_completed_successfully
+      media_setup:
         condition: service_completed_successfully
     healthcheck:
       test:
@@ -70,6 +83,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777
+    volumes:
+      - food_history_media:/media
     security_opt:
       - no-new-privileges:true
 
@@ -82,8 +97,11 @@ services:
       DATABASE_URL: postgresql://${PUBLIC_DATABASE_USER:-food_history_public}:${PUBLIC_DATABASE_PASSWORD}@db:5432/${POSTGRES_DB}
       PUBLIC_BASE_URL: https://${PUBLIC_HOST:-not-configured.invalid}
       APP_MODE: public
+      MEDIA_ROOT: /media
     depends_on:
       setup:
+        condition: service_completed_successfully
+      media_setup:
         condition: service_completed_successfully
     healthcheck:
       test:
@@ -103,6 +121,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777
+    volumes:
+      - food_history_media:/media:ro
     security_opt:
       - no-new-privileges:true
 
@@ -131,6 +151,8 @@ services:
 
 volumes:
   food_history_pgdata:
+  food_history_media:
+    name: food_history_media
   caddy_data:
   caddy_config:
 

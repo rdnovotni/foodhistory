@@ -53,6 +53,7 @@ The setup service is repeatable. It records applied migration filenames in the e
 - Material-culture objects with measurements, marks, production, condition, holdings, provenance, and images
 - Unified PostgreSQL search across names, menu text, object marks, and transcriptions
 - Reviewed wiki articles with immutable revisions, canonical citations, and entity links
+- Editorial entity/citation/media pickers, article categories, full-text wiki search, and revision comparison
 - HTML catalogue views for entities, taxonomy, menus, and search
 - Health check and generated interactive API documentation
 
@@ -83,7 +84,7 @@ uvicorn app.main:app --reload
 
 Run `pytest -q` for the complete suite when `DATABASE_URL` points at the migrated test database. Without `DATABASE_URL`, the two PostgreSQL integration tests skip. Run `ruff check app tools/bootstrap_db.py tests` for application linting.
 
-The complete conceptual design began with 85 planned research-data tables. The implementation contains 56 Phase 1 research tables plus 8 wiki/editorial tables.
+The complete conceptual design began with 85 planned research-data tables. The implementation contains 56 Phase 1 research tables plus 11 wiki/editorial tables.
 
 ## Version baseline
 

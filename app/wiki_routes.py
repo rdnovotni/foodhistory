@@ -1,11 +1,17 @@
 """Public wiki reads and private-only editorial routes."""
 
+import difflib
+import hashlib
+import json
 import re
+from io import BytesIO
+from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from PIL import Image, UnidentifiedImageError
 
 from app.auth import digest_secret, new_secret
 from app.config import Settings
@@ -36,6 +42,18 @@ def _slug(value: str) -> str:
     return value
 
 
+def _images(value: str) -> list[dict[str, str]]:
+    if not value.strip():
+        return []
+    try:
+        result = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise ValueError("Image selections are invalid") from exc
+    if not isinstance(result, list) or not all(isinstance(item, dict) for item in result):
+        raise ValueError("Image selections are invalid")
+    return result
+
+
 def _require_account(request: Request, repo: WikiRepository) -> dict[str, Any]:
     token = request.cookies.get(SESSION_COOKIE)
     account = repo.get_session(token) if token else None
@@ -54,8 +72,10 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
     router = APIRouter()
 
     @router.get("/v1/wiki/pages", tags=["wiki"])
-    def wiki_pages(repo: WikiRepo) -> list[dict[str, Any]]:
-        return repo.list_published()
+    def wiki_pages(
+        repo: WikiRepo, q: str | None = None, category: str | None = None
+    ) -> list[dict[str, Any]]:
+        return repo.list_published(q=q, category=category)
 
     @router.get("/v1/wiki/pages/{slug}", tags=["wiki"])
     def wiki_page_api(slug: str, repo: WikiRepo) -> dict[str, Any]:
@@ -68,9 +88,41 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         return page
 
     @router.get("/wiki", response_class=HTMLResponse, include_in_schema=False)
-    def wiki_index(request: Request, repo: WikiRepo) -> HTMLResponse:
+    def wiki_index(
+        request: Request,
+        repo: WikiRepo,
+        q: str = "",
+        category: str | None = None,
+    ) -> HTMLResponse:
         return templates.TemplateResponse(
-            request=request, name="wiki_index.html", context={"pages": repo.list_published()}
+            request=request,
+            name="wiki_index.html",
+            context={
+                "pages": repo.list_published(q=q or None, category=category),
+                "categories": repo.list_public_categories(),
+                "q": q,
+                "selected_category": category or "",
+            },
+        )
+
+    @router.get("/wiki/categories", response_class=HTMLResponse, include_in_schema=False)
+    def wiki_categories(request: Request, repo: WikiRepo) -> HTMLResponse:
+        return templates.TemplateResponse(
+            request=request,
+            name="wiki_categories.html",
+            context={"categories": repo.list_public_categories()},
+        )
+
+    @router.get("/wiki/category/{slug}", response_class=HTMLResponse, include_in_schema=False)
+    def wiki_category(request: Request, slug: str, repo: WikiRepo) -> HTMLResponse:
+        categories = repo.list_public_categories()
+        category = next((item for item in categories if item["slug"] == slug), None)
+        if not category:
+            raise HTTPException(status_code=404, detail="Wiki category not found")
+        return templates.TemplateResponse(
+            request=request,
+            name="wiki_category.html",
+            context={"category": category, "pages": repo.list_published(category=slug)},
         )
 
     @router.get("/wiki/{slug}", response_class=HTMLResponse, include_in_schema=False)
@@ -84,6 +136,23 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         return templates.TemplateResponse(
             request=request, name="wiki_page.html", context={"page": page}
         )
+
+    @router.get("/media/{digest}/{filename}", include_in_schema=False)
+    def wiki_media(digest: str, filename: str, repo: WikiRepo) -> FileResponse:
+        if not re.fullmatch(r"[0-9a-f]{64}", digest) or not re.fullmatch(
+            r"asset\.(?:jpg|png|webp|gif)", filename
+        ):
+            raise HTTPException(status_code=404, detail="Media not found")
+        storage_uri = f"/media/{digest}/{filename}"
+        allowed = (
+            repo.media_exists(storage_uri)
+            if settings.app_mode == "editorial"
+            else repo.media_is_public(storage_uri)
+        )
+        path = Path(settings.media_root) / digest / filename
+        if not allowed or not path.is_file():
+            raise HTTPException(status_code=404, detail="Media not found")
+        return FileResponse(path)
 
     if settings.app_mode != "editorial":
         return router
@@ -143,14 +212,23 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         return response
 
     @router.get("/editor", response_class=HTMLResponse, include_in_schema=False)
-    def editor_dashboard(request: Request, repo: WikiRepo) -> HTMLResponse:
+    def editor_dashboard(
+        request: Request, repo: WikiRepo, q: str = "", status: str = ""
+    ) -> HTMLResponse:
         account = _require_account(request, repo)
+        pages = repo.list_editor_pages()
+        if q:
+            pages = [page for page in pages if q.lower() in page["title"].lower()]
+        if status:
+            pages = [page for page in pages if page["status"] == status]
         return templates.TemplateResponse(
             request=request,
             name="editor_dashboard.html",
             context={
                 "account": account,
-                "pages": repo.list_editor_pages(),
+                "pages": pages,
+                "q": q,
+                "status": status,
                 "csrf_token": request.cookies.get(CSRF_COOKIE, ""),
             },
         )
@@ -166,6 +244,7 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
             context={
                 "account": account,
                 "page": None,
+                "categories": repo.list_editor_categories(),
                 "csrf_token": request.cookies.get(CSRF_COOKIE, ""),
             },
         )
@@ -182,6 +261,8 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         change_note: Annotated[str, Form()] = "",
         entity_public_ids: Annotated[str, Form()] = "",
         citation_ids: Annotated[str, Form()] = "",
+        category_names: Annotated[str, Form()] = "",
+        image_data: Annotated[str, Form()] = "",
     ) -> RedirectResponse:
         account = _require_account(request, repo)
         _require_csrf(request, account, csrf_token)
@@ -192,6 +273,7 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
             body_markdown=body_markdown, change_note=change_note.strip(),
             user_id=account["account_id"], entity_public_ids=_csv(entity_public_ids),
             citation_ids=_csv(citation_ids),
+            category_names=_csv(category_names), images=_images(image_data),
         )
         return RedirectResponse(f"/editor/pages/{page_id}", status_code=303)
 
@@ -223,6 +305,7 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
             context={
                 "account": account,
                 "page": page,
+                "categories": repo.list_editor_categories(),
                 "csrf_token": request.cookies.get(CSRF_COOKIE, ""),
             },
         )
@@ -239,6 +322,8 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         change_note: Annotated[str, Form()] = "",
         entity_public_ids: Annotated[str, Form()] = "",
         citation_ids: Annotated[str, Form()] = "",
+        category_names: Annotated[str, Form()] = "",
+        image_data: Annotated[str, Form()] = "",
     ) -> RedirectResponse:
         account = _require_account(request, repo)
         _require_csrf(request, account, csrf_token)
@@ -248,8 +333,122 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
             page_id, title=title.strip(), summary=summary.strip(), body_markdown=body_markdown,
             change_note=change_note.strip(), user_id=account["account_id"],
             entity_public_ids=_csv(entity_public_ids), citation_ids=_csv(citation_ids),
+            category_names=_csv(category_names), images=_images(image_data),
         )
         return RedirectResponse(f"/editor/pages/{page_id}", status_code=303)
+
+    @router.get("/editor/pickers/entities", include_in_schema=False)
+    def entity_picker(request: Request, repo: WikiRepo, q: str = "") -> list[dict[str, Any]]:
+        _require_account(request, repo)
+        return repo.search_entities(q.strip()) if q.strip() else []
+
+    @router.get("/editor/pickers/citations", include_in_schema=False)
+    def citation_picker(request: Request, repo: WikiRepo, q: str = "") -> list[dict[str, Any]]:
+        _require_account(request, repo)
+        return repo.search_citations(q.strip()) if q.strip() else []
+
+    @router.get("/editor/pickers/media", include_in_schema=False)
+    def media_picker(request: Request, repo: WikiRepo, q: str = "") -> list[dict[str, Any]]:
+        _require_account(request, repo)
+        return repo.search_media(q.strip()) if q.strip() else []
+
+    @router.post("/editor/media", include_in_schema=False)
+    async def media_upload(
+        request: Request,
+        repo: WikiRepo,
+        csrf_token: Annotated[str, Form()],
+        upload: Annotated[UploadFile, File()],
+    ) -> dict[str, Any]:
+        account = _require_account(request, repo)
+        _require_csrf(request, account, csrf_token)
+        if account["role"] not in {"owner", "editor"}:
+            raise HTTPException(status_code=403, detail="Editor role required")
+        allowed_types = {
+            "image/jpeg": "jpg", "image/png": "png",
+            "image/webp": "webp", "image/gif": "gif",
+        }
+        if upload.content_type not in allowed_types:
+            raise HTTPException(status_code=415, detail="Use JPEG, PNG, WebP, or GIF")
+        content = await upload.read(settings.media_max_bytes + 1)
+        if len(content) > settings.media_max_bytes:
+            raise HTTPException(status_code=413, detail="Image exceeds the upload limit")
+        try:
+            with Image.open(BytesIO(content)) as image:
+                image.verify()
+            with Image.open(BytesIO(content)) as image:
+                width, height = image.size
+                detected_format = image.format
+        except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
+            raise HTTPException(status_code=415, detail="File is not a valid image") from exc
+        expected_format = {
+            "image/jpeg": "JPEG", "image/png": "PNG",
+            "image/webp": "WEBP", "image/gif": "GIF",
+        }[upload.content_type]
+        if detected_format != expected_format:
+            raise HTTPException(status_code=415, detail="Image content does not match its type")
+        digest = hashlib.sha256(content).hexdigest()
+        filename = f"asset.{allowed_types[upload.content_type]}"
+        directory = Path(settings.media_root) / digest
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / filename
+        if not path.exists():
+            path.write_bytes(content)
+        return repo.register_media(
+            sha256=digest,
+            storage_uri=f"/media/{digest}/{filename}",
+            original_filename=Path(upload.filename or filename).name,
+            mime_type=upload.content_type,
+            file_size_bytes=len(content),
+            width_px=width,
+            height_px=height,
+            user_id=account["account_id"],
+        )
+
+    @router.get(
+        "/editor/pages/{page_id}/history",
+        response_class=HTMLResponse,
+        include_in_schema=False,
+    )
+    def revision_history(
+        request: Request,
+        page_id: str,
+        repo: WikiRepo,
+        from_revision: int | None = None,
+        to_revision: int | None = None,
+    ) -> HTMLResponse:
+        account = _require_account(request, repo)
+        page = repo.get_editor_page(page_id)
+        if not page:
+            raise HTTPException(status_code=404, detail="Wiki page not found")
+        revisions = repo.list_revisions(page_id)
+        comparison = None
+        if revisions and (from_revision is not None or len(revisions) > 1):
+            newer_number = to_revision or revisions[0]["revision_number"]
+            older_number = from_revision or revisions[1]["revision_number"]
+            older = repo.get_revision(page_id, older_number)
+            newer = repo.get_revision(page_id, newer_number)
+            if not older or not newer:
+                raise HTTPException(status_code=404, detail="Revision not found")
+            comparison = {
+                "from": older_number,
+                "to": newer_number,
+                "html": difflib.HtmlDiff(wrapcolumn=70).make_table(
+                    older["body_markdown"].splitlines(),
+                    newer["body_markdown"].splitlines(),
+                    fromdesc=f"Revision {older_number}",
+                    todesc=f"Revision {newer_number}",
+                    context=True,
+                    numlines=3,
+                ),
+            }
+        return templates.TemplateResponse(
+            request=request,
+            name="editor_history.html",
+            context={
+                "account": account, "page": page, "revisions": revisions,
+                "comparison": comparison,
+            },
+        )
 
     @router.post("/editor/pages/{page_id}/review", include_in_schema=False)
     def editor_review(

@@ -38,10 +38,10 @@ The JSON API is under `/v1`. Interactive generated documentation is at `/api/doc
 | Bibliography | `/v1/works/{public_id}` | `/works/{public_id}` |
 | Material culture | `/v1/objects/{public_id}` | `/objects/{public_id}` |
 | Search | `/v1/search` | `/search` |
-| Wiki | `/v1/wiki/pages`, `/v1/wiki/pages/{slug}` | `/wiki`, `/wiki/{slug}` |
+| Wiki | `/v1/wiki/pages`, `/v1/wiki/pages/{slug}` | `/wiki`, `/wiki/{slug}`, `/wiki/categories` |
 | Operations | `/health` | — |
 
-Private deployments additionally register `/editor/*` for authenticated article drafting, preview, review, and publication. See `WIKI.md`. Those routes are absent—not merely hidden—when `APP_MODE=public`.
+Private deployments additionally register `/editor/*` for authenticated article drafting, entity/citation/media lookup, validated image upload, preview, revision comparison, review, and publication. See `WIKI.md`. Those routes are absent—not merely hidden—when `APP_MODE=public`.
 
 Entity, occurrence, and search collections use opaque cursors. Invalid cursors return HTTP 400 rather than being interpreted as database values.
 
