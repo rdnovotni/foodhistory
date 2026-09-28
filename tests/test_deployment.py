@@ -2,6 +2,8 @@ from pathlib import Path
 
 import yaml
 
+from tools import start_web
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -20,3 +22,18 @@ def test_render_blueprint_uses_private_postgres_and_release_migrations():
     assert database["postgresMajorVersion"] == "16"
     assert database["plan"] == "free"
     assert database["ipAllowList"] == []
+
+
+def test_platform_launcher_sets_project_as_application_directory(monkeypatch):
+    invocation = {}
+    monkeypatch.delenv("RUN_DB_BOOTSTRAP", raising=False)
+    monkeypatch.setattr(
+        start_web.uvicorn,
+        "run",
+        lambda app, **options: invocation.update(app=app, **options),
+    )
+
+    start_web.main()
+
+    assert invocation["app"] == "app.main:app"
+    assert invocation["app_dir"] == str(ROOT)
