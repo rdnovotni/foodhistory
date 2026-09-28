@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }} — Food History Wiki{% endblock %}
+{% block content %}<article class="detail wiki-article"><p class="eyebrow">Food History Wiki · Revision {{ page.revision_number }}</p><h1>{{ page.title }}</h1>{% if page.summary %}<p class="lede">{{ page.summary }}</p>{% endif %}<div class="wiki-body">{{ page.body_html|safe }}</div>
+{% if page.entities %}<section><h2>Related catalogue records</h2><ul>{% for entity in page.entities %}<li><a href="/entities/{{ entity.public_id }}">{{ entity.label }}</a> <small>{{ entity.relationship }}</small></li>{% endfor %}</ul></section>{% endif %}
+{% if page.citations %}<section><h2>Sources</h2><ol>{% for citation in page.citations %}<li><a href="/entities/{{ citation.source_public_id }}">{{ citation.source_label }}</a>{% if citation.locator_text %}, {{ citation.locator_text }}{% elif citation.page_label %}, p. {{ citation.page_label }}{% endif %}{% if citation.note %} — {{ citation.note }}{% endif %}</li>{% endfor %}</ol></section>{% endif %}</article>{% endblock %}
