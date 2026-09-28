@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Food History Wiki{% endblock %}
+{% block content %}
+<div class="detail"><p class="eyebrow">Research essays</p><h1>Food History Wiki</h1><p class="lede">Reviewed narrative articles connected to the catalogue and its evidence.</p></div>
+<div class="result-list">{% for page in pages %}<article><h2><a href="/wiki/{{ page.slug }}">{{ page.title }}</a></h2>{% if page.summary %}<p>{{ page.summary }}</p>{% endif %}</article>{% else %}<p class="empty">No articles have been published yet.</p>{% endfor %}</div>
+{% endblock %}

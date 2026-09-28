@@ -1,5 +1,13 @@
 # Changelog
 
+## Wiki foundation v1.3 — 2026-09-28
+
+- Added private editorial accounts with scrypt password hashes, opaque expiring sessions, role checks, and CSRF protection.
+- Added immutable wiki revisions, append-only review events, stable pages and redirects, entity links, and canonical citation links.
+- Added Markdown drafting and sanitized preview, draft/review/approval/publication workflow, and public wiki HTML/API reads.
+- Split production into a loopback-only editorial process and a separately profiled public read process with no editor routes.
+- Added owner-account tooling, Wiki architecture and operating documentation, tests, and API contract updates.
+
 ## Catalogue completion v1.2 — 2026-09-27
 
 - Implemented the contracted bibliographic Work hierarchy API and catalogue view.

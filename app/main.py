@@ -14,6 +14,7 @@ from app import __version__
 from app.config import Settings
 from app.db import Database
 from app.repository import Repository
+from app.wiki_routes import build_wiki_router
 
 BASE_DIR = Path(__file__).resolve().parent
 VOCABULARY_CODES = {"ENT", "FC", "SUB", "ROT", "CTX", "COL", "FAC", "REL", "EVD", "CAT"}
@@ -31,7 +32,8 @@ def get_repository(settings: Annotated[Settings, Depends(get_settings)]) -> Repo
 Repo = Annotated[Repository, Depends(get_repository)]
 
 
-def create_app() -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
+    runtime_settings = settings or get_settings()
     app = FastAPI(
         title="Food History",
         version=__version__,
@@ -42,6 +44,7 @@ def create_app() -> FastAPI:
     )
     app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
     templates = Jinja2Templates(directory=BASE_DIR / "templates")
+    app.include_router(build_wiki_router(templates, runtime_settings))
 
     @app.exception_handler(ValueError)
     async def invalid_parameter(_request: Request, exc: ValueError) -> JSONResponse:

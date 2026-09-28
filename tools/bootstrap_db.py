@@ -58,6 +58,16 @@ def main() -> None:
     for path in MIGRATIONS[8:]:
         apply_migration(database_url, path)
 
+    public_password = os.getenv("PUBLIC_DATABASE_PASSWORD")
+    if public_password:
+        from provision_public_reader import provision
+
+        provision(
+            database_url,
+            os.getenv("PUBLIC_DATABASE_USER", "food_history_public"),
+            public_password,
+        )
+
     if os.getenv("LOAD_EXAMPLES", "").lower() in {"1", "true", "yes"}:
         for kind in ("menu", "cookbook", "object"):
             environment = dict(os.environ, DATABASE_URL=database_url)
