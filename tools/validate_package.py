@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 """Static validation for the Food History Phase 1 backend package."""
 from __future__ import annotations
-import csv, gzip, json, re
+
+import csv
+import gzip
+import json
+import re
 from pathlib import Path
+
 import yaml
 from jsonschema import Draft202012Validator
 
@@ -42,7 +47,8 @@ def load_taxonomy_codes():
             code = row["code"]
             if code in codes:
                 fail(f"duplicate taxonomy code {code}")
-            codes.add(code); total += 1
+            codes.add(code)
+            total += 1
     if total != 1392:
         fail(f"expected 1,392 taxonomy terms, found {total}")
     return codes
@@ -84,8 +90,8 @@ def parse_migrations():
         if table in tables:
             fail(f"table created twice: {table}")
         tables[table] = cols
-    if len(tables) != 56:
-        fail(f"expected 56 Phase 1 tables, parsed {len(tables)}")
+    if len(tables) != 64:
+        fail(f"expected 64 application tables, parsed {len(tables)}")
     fk_re = re.compile(r'ALTER TABLE\s+"(?P<child>[^"]+)".*?FOREIGN KEY\s*\("(?P<childcol>[^"]+)"\)\s*REFERENCES\s+"(?P<parent>[^"]+)"\s*\("(?P<parentcol>[^"]+)"\)', re.I)
     for m in fk_re.finditer(sql):
         child, childcol, parent, parentcol = m.group("child"), m.group("childcol"), m.group("parent"), m.group("parentcol")
@@ -101,7 +107,7 @@ def main():
     validate_example_codes(codes)
     validate_openapi()
     tables = parse_migrations()
-    print(f"PASS: examples, taxonomy (1,392 terms), OpenAPI, and {len(tables)} Phase 1 migration tables are internally consistent.")
+    print(f"PASS: examples, taxonomy (1,392 terms), OpenAPI, and {len(tables)} application tables are internally consistent.")
 
 if __name__ == "__main__":
     main()

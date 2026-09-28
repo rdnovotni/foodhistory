@@ -1,3 +1,3 @@
-"""Food History public read application."""
+"""Food History catalogue and private editorial application."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

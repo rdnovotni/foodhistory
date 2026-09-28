@@ -9,9 +9,15 @@ class Settings:
     database_url: str
     public_base_url: str = "http://localhost:8000"
     debug: bool = False
+    app_mode: str = "public"
+    editor_session_hours: int = 12
+    editor_cookie_secure: bool = True
 
     @classmethod
     def from_env(cls) -> "Settings":
+        app_mode = os.getenv("APP_MODE", "public").lower()
+        if app_mode not in {"public", "editorial"}:
+            raise ValueError("APP_MODE must be 'public' or 'editorial'")
         return cls(
             database_url=os.getenv(
                 "DATABASE_URL",
@@ -19,4 +25,8 @@ class Settings:
             ),
             public_base_url=os.getenv("PUBLIC_BASE_URL", "http://localhost:8000"),
             debug=os.getenv("DEBUG", "").lower() in {"1", "true", "yes"},
+            app_mode=app_mode,
+            editor_session_hours=int(os.getenv("EDITOR_SESSION_HOURS", "12")),
+            editor_cookie_secure=os.getenv("EDITOR_COOKIE_SECURE", "true").lower()
+            in {"1", "true", "yes"},
         )
