@@ -90,19 +90,19 @@ class Repository:
             FROM entity e
             JOIN taxonomy_term type ON type.term_id = e.entity_type_term_id
             WHERE e.visibility = 'public'
-              AND (%s IS NULL OR type.code = %s)
-              AND (%s IS NULL OR e.preferred_label ILIKE '%%' || %s || '%%'
+              AND (%s::text IS NULL OR type.code = %s)
+              AND (%s::text IS NULL OR e.preferred_label ILIKE '%%' || %s || '%%'
                    OR EXISTS (
                        SELECT 1 FROM entity_name name
                        WHERE name.entity_id = e.entity_id
                          AND name.name_text ILIKE '%%' || %s || '%%'
                    ))
-              AND (%s IS NULL OR EXISTS (
+              AND (%s::text IS NULL OR EXISTS (
                   SELECT 1 FROM entity_term_assignment assignment
                   WHERE assignment.entity_id = e.entity_id
                     AND assignment.term_id IN (SELECT term_id FROM selected_terms)
               ))
-              AND (%s IS NULL OR (lower(e.preferred_label), e.public_id) > (%s, %s))
+              AND (%s::text IS NULL OR (lower(e.preferred_label), e.public_id) > (%s, %s))
             ORDER BY lower(e.preferred_label), e.public_id
             LIMIT %s
             """,
@@ -233,7 +233,7 @@ class Repository:
             LEFT JOIN taxonomy_term status ON status.term_id = assertion.claim_status_term_id
             LEFT JOIN taxonomy_term confidence ON confidence.term_id = assertion.confidence_term_id
             WHERE assertion.subject_entity_id = %s
-              AND (%s IS NULL OR predicate.code = %s)
+              AND (%s::text IS NULL OR predicate.code = %s)
             ORDER BY assertion.is_preferred DESC, assertion.created_at, assertion.assertion_id
             """,
             (subject["entity_id"], predicate_code, predicate_code),
@@ -307,11 +307,11 @@ class Repository:
             FROM taxonomy_term term
             JOIN vocabulary ON vocabulary.vocabulary_id = term.vocabulary_id
             WHERE vocabulary.code = %s
-              AND (%s IS NULL OR term.preferred_label ILIKE '%%' || %s || '%%'
+              AND (%s::text IS NULL OR term.preferred_label ILIKE '%%' || %s || '%%'
                    OR EXISTS (SELECT 1 FROM taxonomy_label label
                               WHERE label.term_id = term.term_id
                                 AND label.label_text ILIKE '%%' || %s || '%%'))
-              AND (%s IS NULL OR EXISTS (
+              AND (%s::text IS NULL OR EXISTS (
                   SELECT 1 FROM taxonomy_edge edge
                   JOIN taxonomy_term parent ON parent.term_id = edge.parent_term_id
                   WHERE edge.child_term_id = term.term_id
@@ -500,10 +500,10 @@ class Repository:
                    occurrence.price_text, occurrence.price_amount, occurrence.currency_code
             FROM v_menu_item_occurrence occurrence
             WHERE occurrence.normalized_food_entity_id = %s
-              AND (%s IS NULL OR occurrence.service_date_edtf >= %s)
-              AND (%s IS NULL OR occurrence.service_date_edtf <= %s)
-              AND (%s IS NULL OR occurrence.establishment_public_id = %s)
-              AND (%s IS NULL OR (occurrence.menu_public_id, occurrence.sequence,
+              AND (%s::text IS NULL OR occurrence.service_date_edtf >= %s)
+              AND (%s::text IS NULL OR occurrence.service_date_edtf <= %s)
+              AND (%s::text IS NULL OR occurrence.establishment_public_id = %s)
+              AND (%s::text IS NULL OR (occurrence.menu_public_id, occurrence.sequence,
                                    occurrence.menu_item_id) > (%s, %s, %s::uuid))
             ORDER BY occurrence.menu_public_id, occurrence.sequence, occurrence.menu_item_id
             LIMIT %s
@@ -586,8 +586,8 @@ class Repository:
                 FROM entity e
                 JOIN taxonomy_term type ON type.term_id = e.entity_type_term_id
                 WHERE e.visibility = 'public'
-                  AND (%s IS NULL OR type.code = %s)
-                  AND (%s IS NULL OR EXISTS (
+                  AND (%s::text IS NULL OR type.code = %s)
+                  AND (%s::text IS NULL OR EXISTS (
                       SELECT 1 FROM entity_term_assignment assignment
                       WHERE assignment.entity_id = e.entity_id
                         AND assignment.term_id IN (SELECT term_id FROM selected_terms)
@@ -595,7 +595,7 @@ class Repository:
             )
             SELECT * FROM ranked
             WHERE score >= 0.08
-              AND (%s IS NULL OR (score, public_id) < (%s, %s))
+              AND (%s::numeric IS NULL OR (score, public_id) < (%s, %s))
             ORDER BY score DESC, public_id
             LIMIT %s
             """,
