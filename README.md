@@ -48,11 +48,17 @@ The setup service is repeatable. It records applied migration filenames in the e
 - Controlled-vocabulary browse/detail, including hierarchy and alternate labels
 - Menu detail with ordered sections, original printed text, and normalized food links
 - Normalized food menu occurrences
+- Bibliographic Work → Expression → Manifestation → Item hierarchy
+- Material-culture objects with measurements, marks, production, condition, holdings, provenance, and images
 - Unified PostgreSQL search across names, menu text, object marks, and transcriptions
 - HTML catalogue views for entities, taxonomy, menus, and search
 - Health check and generated interactive API documentation
 
-All public queries enforce `entity.visibility = 'public'`. They return public IDs rather than internal UUIDs, retain original/printed text next to normalized links, and expose evidence as citations attached to assertions. The Work and Object resources already specified in `api/openapi.yaml` remain planned read models for a later application slice.
+All public queries enforce `entity.visibility = 'public'`. They return public IDs rather than internal UUIDs, retain original/printed text next to normalized links, and expose evidence as citations attached to assertions. The application now implements every public read resource specified in `api/openapi.yaml`; the three staff ingestion routes remain command-line transactional loaders rather than public web writes.
+
+## Staging
+
+`render.yaml` defines a staging-ready Docker service and private managed PostgreSQL 16 database. See `docs/STAGING.md` for provisioning, reviewed-data requirements, smoke testing, backup verification, and the production gate. Applying the blueprint requires access to a Render workspace linked to this repository.
 
 ## Development without Compose
 
