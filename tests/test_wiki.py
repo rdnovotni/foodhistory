@@ -7,7 +7,7 @@ from PIL import Image
 from app.auth import digest_secret, hash_password, verify_password
 from app.config import Settings
 from app.main import create_app, get_repository
-from app.wiki_render import render_markdown
+from app.wiki_render import render_article, render_markdown, wiki_link_slugs
 from app.wiki_routes import get_wiki_repository
 from tests.test_app import FakeRepository
 
@@ -30,6 +30,15 @@ class FakeWikiRepository:
 
     def list_editor_categories(self):
         return self.list_public_categories()
+
+    def search_wiki_pages(self, q):
+        return [{"slug": "apple-pie", "title": "Apple pie"}]
+
+    def public_link_targets(self, slugs):
+        return {slug: {"slug": slug, "title": "Apple pie"} for slug in slugs if slug == "apple-pie"}
+
+    def backlinks(self, slug):
+        return [{"slug": "pie-history", "title": "Pie history", "summary": "Background."}]
 
     def get_published(self, slug):
         if slug != "apple-pie":
@@ -114,14 +123,32 @@ def test_password_hashing_and_markdown_sanitizing():
     assert 'href="javascript:' not in html
 
 
+def test_outline_and_links_ignore_code_and_existing_links():
+    source = ("## Origins & names\n\n[[apple-pie]] and [[apple-pie|<Pie>]]; "
+              "[[draft-page]] and `[[code-page]]` and [normal](https://example.org).\n\n"
+              "```\n[[fenced-page]]\n```\n\n### Origins & names\n\n## Origins & names")
+    assert wiki_link_slugs(source) == ["apple-pie", "draft-page"]
+    result = render_article(source, {"apple-pie": {"slug": "apple-pie", "title": "Apple pie"}})
+    assert [item["id"] for item in result["toc"]] == [
+        "origins-names", "origins-names-2", "origins-names-3",
+    ]
+    assert 'href="/wiki/apple-pie"' in result["body_html"]
+    assert "&lt;Pie&gt;" in result["body_html"]
+    assert 'class="wiki-missing"' in result["body_html"]
+    assert 'href="/wiki/draft-page"' not in result["body_html"]
+    assert 'id="origins-names-2"' in result["body_html"]
+
+
 def test_public_wiki_reads_only_published_content():
     client, _ = make_client()
     assert "Apple pie" in client.get("/wiki").text
     response = client.get("/v1/wiki/pages/apple-pie")
     assert response.status_code == 200
-    assert "<h2>Origins</h2>" in response.json()["body_html"]
+    assert '<h2 id="origins">Origins</h2>' in response.json()["body_html"]
     assert client.get("/v1/wiki/pages/missing").status_code == 404
     assert "A researched article" in client.get("/wiki/apple-pie").text
+    assert 'href="#origins"' in client.get("/wiki/apple-pie").text
+    assert "What links here" in client.get("/wiki/apple-pie").text
     assert "Desserts" in client.get("/wiki/categories").text
     assert "Apple pie" in client.get("/wiki/category/desserts").text
 
@@ -168,6 +195,7 @@ def test_editor_picker_and_validated_image_upload(tmp_path):
         data={"username": "editor", "password": "a sufficiently long password"},
     )
     assert client.get("/editor/pickers/entities", params={"q": "apple"}).json()[0]["public_id"] == "FH-TEST"
+    assert client.get("/editor/pickers/wiki", params={"q": "apple"}).json()[0]["slug"] == "apple-pie"
     assert "Related catalogue records" in client.get("/editor/pages/new").text
     assert "Revision 1" in client.get("/editor/pages/test/history").text
     buffer = BytesIO()

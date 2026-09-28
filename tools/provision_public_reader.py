@@ -43,7 +43,7 @@ def provision(database_url: str, username: str, password: str) -> None:
             "app_user", "editor_account", "editor_session", "wiki_page",
             "wiki_revision", "wiki_review", "wiki_revision_entity",
             "wiki_revision_citation", "wiki_redirect", "wiki_category",
-            "wiki_revision_category", "wiki_revision_image",
+            "wiki_revision_category", "wiki_revision_image", "wiki_revision_link",
         )
         connection.execute(
             sql.SQL("REVOKE ALL ON TABLE {} FROM {}").format(

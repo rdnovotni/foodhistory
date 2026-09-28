@@ -58,6 +58,8 @@ def main() -> None:
     for path in MIGRATIONS[8:]:
         apply_migration(database_url, path)
 
+    run_script(database_url, "tools", "backfill_wiki_links.py")
+
     public_password = os.getenv("PUBLIC_DATABASE_PASSWORD")
     if public_password:
         from provision_public_reader import provision

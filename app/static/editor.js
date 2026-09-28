@@ -28,6 +28,54 @@
     });
   });
 
+  const article = root.querySelector("[data-wiki-editor]");
+  const suggestions = root.querySelector("[data-wiki-suggestions]");
+  if (article && suggestions) {
+    let matches = [], range = null, active = 0, requestId = 0;
+    const hide = () => { suggestions.hidden = true; suggestions.replaceChildren(); matches = []; };
+    const context = () => {
+      const before = article.value.slice(0, article.selectionStart);
+      const opening = before.lastIndexOf("[[");
+      if (opening < 0 || before.slice(opening).includes("]]")) return null;
+      const query = before.slice(opening + 2);
+      return /^[\w -]{0,60}$/.test(query) ? {opening, query: query.trim()} : null;
+    };
+    const choose = index => {
+      if (!range || !matches[index]) return;
+      const slug = matches[index].slug;
+      article.value = article.value.slice(0, range.opening) + `[[${slug}]]` + article.value.slice(range.end);
+      article.focus(); article.setSelectionRange(range.opening + slug.length + 4, range.opening + slug.length + 4);
+      hide();
+    };
+    const update = debounce(async () => {
+      const current = context();
+      if (!current) { hide(); return; }
+      const id = ++requestId;
+      const response = await fetch(`/editor/pickers/wiki?q=${encodeURIComponent(current.query)}`);
+      const latest = context();
+      if (id !== requestId || !response.ok || !latest || latest.opening !== current.opening || latest.query !== current.query) return;
+      matches = await response.json(); range = {opening:current.opening, end:article.selectionStart}; active = 0;
+      suggestions.innerHTML = matches.map((item, index) => `<button type="button" role="option" data-wiki-index="${index}">${escapeHtml(item.title)} · ${escapeHtml(item.slug)}</button>`).join("");
+      suggestions.hidden = !matches.length;
+    }, 180);
+    article.addEventListener("input", update);
+    article.addEventListener("click", update);
+    article.addEventListener("keydown", event => {
+      if (suggestions.hidden) return;
+      if (event.key === "Escape") { hide(); return; }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault(); active = (active + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length;
+        suggestions.querySelectorAll("button").forEach((button, index) => button.classList.toggle("active", index === active));
+      } else if (event.key === "Enter" || event.key === "Tab") {
+        event.preventDefault(); choose(active);
+      }
+    });
+    suggestions.addEventListener("mousedown", event => {
+      const button = event.target.closest("[data-wiki-index]");
+      if (button) { event.preventDefault(); choose(Number(button.dataset.wikiIndex)); }
+    });
+  }
+
   const mediaRoot = document.querySelector("[data-media-picker]");
   if (!mediaRoot) return;
   const selectedRoot = mediaRoot.querySelector("[data-selected-media]");
