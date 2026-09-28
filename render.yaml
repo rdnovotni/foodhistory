@@ -2,6 +2,7 @@ services:
   - type: web
     name: food-history-staging
     runtime: docker
+    plan: free
     dockerfilePath: ./Dockerfile
     dockerContext: .
     healthCheckPath: /health
@@ -15,6 +16,7 @@ services:
 
 databases:
   - name: food-history-staging-db
+    plan: free
     databaseName: food_history
     user: food_history
     postgresMajorVersion: "16"

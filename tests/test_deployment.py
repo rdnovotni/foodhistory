@@ -11,8 +11,10 @@ def test_render_blueprint_uses_private_postgres_and_release_migrations():
     database = blueprint["databases"][0]
 
     assert service["runtime"] == "docker"
+    assert service["plan"] == "free"
     assert service["healthCheckPath"] == "/health"
     assert service["preDeployCommand"] == "python tools/bootstrap_db.py"
     assert service["envVars"][0]["fromDatabase"]["name"] == database["name"]
     assert database["postgresMajorVersion"] == "16"
+    assert database["plan"] == "free"
     assert database["ipAllowList"] == []
