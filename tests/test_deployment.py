@@ -53,6 +53,13 @@ def test_production_compose_is_private_by_default_and_examples_are_disabled():
     assert services["web"]["ports"] == ["127.0.0.1:8000:8000"]
     assert services["web"]["read_only"] is True
     assert services["web"]["restart"] == "unless-stopped"
+    assert services["web"]["environment"]["APP_MODE"] == "editorial"
+    assert services["public_web"]["profiles"] == ["public"]
+    assert services["public_web"]["environment"]["APP_MODE"] == "public"
+    assert "PUBLIC_DATABASE_USER" in services["public_web"]["environment"]["DATABASE_URL"]
+    assert "POSTGRES_USER" in services["web"]["environment"]["DATABASE_URL"]
+    assert "edge" not in services["web"]["networks"]
+    assert "edge" in services["public_web"]["networks"]
     assert services["caddy"]["profiles"] == ["public"]
     assert services["caddy"]["ports"] == ["80:80", "443:443", "443:443/udp"]
     public_bindings = {
@@ -68,6 +75,7 @@ def test_public_proxy_enforces_https_security_headers():
     caddyfile = (ROOT / "ops" / "Caddyfile").read_text(encoding="utf-8")
 
     assert "{$PUBLIC_HOST}" in caddyfile
-    assert "reverse_proxy web:8000" in caddyfile
+    assert "reverse_proxy public_web:8000" in caddyfile
+    assert "reverse_proxy web:8000" not in caddyfile
     assert "Strict-Transport-Security" in caddyfile
     assert "X-Content-Type-Options" in caddyfile

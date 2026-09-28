@@ -24,6 +24,8 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://foodhistory:foodhistory@localhost:5432/foodhistory_test
+      PUBLIC_DATABASE_USER: foodhistory_public
+      PUBLIC_DATABASE_PASSWORD: public_reader_test_password
 
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +37,7 @@ jobs:
       - name: Static package validation
         run: python tools/validate_package.py
       - name: Lint application
-        run: ruff check app tools/bootstrap_db.py tools/smoke_test.py tools/start_web.py tests
+        run: ruff check app tools tests
       - name: Apply bootstrap migrations
         run: |
           for f in migrations/000{1..8}_*.sql; do

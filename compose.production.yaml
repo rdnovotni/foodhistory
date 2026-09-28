@@ -28,6 +28,8 @@ services:
     command: ["python", "tools/bootstrap_db.py"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      PUBLIC_DATABASE_USER: ${PUBLIC_DATABASE_USER:-food_history_public}
+      PUBLIC_DATABASE_PASSWORD: ${PUBLIC_DATABASE_PASSWORD:?set PUBLIC_DATABASE_PASSWORD in .env.production}
     depends_on:
       db:
         condition: service_healthy
@@ -44,8 +46,42 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       PUBLIC_BASE_URL: ${SITE_BASE_URL:?set SITE_BASE_URL in .env.production}
+      APP_MODE: editorial
+      EDITOR_COOKIE_SECURE: ${EDITOR_COOKIE_SECURE:-true}
     ports:
       - "127.0.0.1:8000:8000"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - backend
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+
+  public_web:
+    build:
+      context: .
+    profiles: ["public"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${PUBLIC_DATABASE_USER:-food_history_public}:${PUBLIC_DATABASE_PASSWORD}@db:5432/${POSTGRES_DB}
+      PUBLIC_BASE_URL: https://${PUBLIC_HOST:-not-configured.invalid}
+      APP_MODE: public
     depends_on:
       setup:
         condition: service_completed_successfully
@@ -86,7 +122,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      web:
+      public_web:
         condition: service_healthy
     networks:
       - edge

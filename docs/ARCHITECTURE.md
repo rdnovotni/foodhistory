@@ -23,8 +23,11 @@ A single modular monolith is the preferred starting shape:
 - Material culture: physical objects, marks, production, measurements, condition.
 - Collections: holdings, collections, provenance.
 - Economics: historical prices and transactions.
+- Wiki: immutable narrative revisions, entity/citation links, and editorial review.
 
 Do not split these into network microservices initially. Their transactions and referential integrity are more valuable than deployment independence at the project's early scale.
+
+The private editor and eventual public website are separate process modes of this modular monolith. The private process registers authenticated write routes. The public process registers only read routes and receives only an approved revision from each wiki page. Both use the same schema so public narrative links resolve directly to canonical records and evidence.
 
 ## 3. Transaction boundaries
 

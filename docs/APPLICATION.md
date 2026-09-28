@@ -1,4 +1,4 @@
-# Public catalogue application
+# Catalogue and wiki application
 
 ## Why this stack
 
@@ -10,7 +10,7 @@ The first application is a FastAPI modular monolith with Jinja templates and dir
 - `app/repository.py` builds public read models with parameterized SQL.
 - `app/db.py` owns short-lived database connections. A pool can replace this boundary when traffic warrants it.
 - `app/templates/` and `app/static/` provide a progressively enhanced, dependency-free public interface.
-- All writes continue through the transactional ingestion tools. The public application has no write route.
+- Canonical research-data writes continue through the transactional ingestion tools. Wiki narrative writes use a separate, private-only editorial repository and immutable revisions. The public application has no write route.
 
 This remains one deployable service over one canonical database. It does not split catalogue, taxonomy, evidence, or search into separate network services.
 
@@ -38,7 +38,10 @@ The JSON API is under `/v1`. Interactive generated documentation is at `/api/doc
 | Bibliography | `/v1/works/{public_id}` | `/works/{public_id}` |
 | Material culture | `/v1/objects/{public_id}` | `/objects/{public_id}` |
 | Search | `/v1/search` | `/search` |
+| Wiki | `/v1/wiki/pages`, `/v1/wiki/pages/{slug}` | `/wiki`, `/wiki/{slug}` |
 | Operations | `/health` | — |
+
+Private deployments additionally register `/editor/*` for authenticated article drafting, preview, review, and publication. See `WIKI.md`. Those routes are absent—not merely hidden—when `APP_MODE=public`.
 
 Entity, occurrence, and search collections use opaque cursors. Invalid cursors return HTTP 400 rather than being interpreted as database values.
 

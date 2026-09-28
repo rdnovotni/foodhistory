@@ -37,7 +37,7 @@ cp .env.production.example .env.production
 chmod 600 .env.production
 ```
 
-Generate a URL-safe database password with `openssl rand -hex 32`. Replace the example password in `.env.production`. Leave `SITE_BASE_URL=http://127.0.0.1:8000` for the first local verification. The password is interpolated into a PostgreSQL URL, so keep it hexadecimal as generated. Never commit `.env.production`; Git ignores it.
+Generate two different URL-safe database passwords with `openssl rand -hex 32`. Use one for `POSTGRES_PASSWORD` and the other for `PUBLIC_DATABASE_PASSWORD`. Leave `SITE_BASE_URL=http://127.0.0.1:8000` for the first local verification. The passwords are interpolated into PostgreSQL URLs, so keep them hexadecimal as generated. Never commit `.env.production`; Git ignores it.
 
 ## First private deployment
 
@@ -51,6 +51,15 @@ ops/healthcheck.sh http://127.0.0.1:8000
 ```
 
 The one-shot `setup` container applies only unapplied migrations and loads the canonical taxonomy. Production never sets `LOAD_EXAMPLES`. The catalogue is not reachable from the LAN or internet because port 8000 is bound only to host loopback.
+
+Create the first private wiki owner after the stack is healthy:
+
+```console
+docker compose --env-file .env.production -f compose.production.yaml exec web \
+  python tools/create_editor.py owner --display-name "Your Name" --role owner
+```
+
+The password prompt requires at least 12 characters and does not expose the password in shell history. See `WIKI.md` for roles and review workflow.
 
 ## Private HTTPS through Tailscale
 
@@ -145,4 +154,4 @@ The public path is intentionally dormant. Before launch:
    python tools/smoke_test.py --base-url https://history.example.com
    ```
 
-Caddy then becomes the only public container, obtains and renews the HTTPS certificate, and proxies to the same read-only application and self-hosted PostgreSQL database. Keep Tailscale for administration and recovery; never expose the database directly.
+Caddy then becomes the only internet-facing container, obtains and renews the HTTPS certificate, and proxies to `public_web`. That process runs with `APP_MODE=public`, so the `/editor/*` routes do not exist; the loopback-bound `web` process remains the private editor. Both use the self-hosted PostgreSQL database, but `public_web` authenticates with the automatically provisioned SELECT-only role. Keep Tailscale for administration and recovery; never expose the database directly.

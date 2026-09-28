@@ -1,6 +1,6 @@
 # Food History — Database and Public Catalogue
 
-This repository is the technical source of truth for the Food History project: taxonomy, database schema, migrations, API contracts, ingestion tooling, research-data conventions, reference artifacts, and the first runnable public catalogue.
+This repository is the technical source of truth for the Food History project: taxonomy, database schema, migrations, API contracts, ingestion tooling, research-data conventions, reference artifacts, the public catalogue, and a private editorial wiki foundation.
 
 The current implementation turns **Food History Master Taxonomy v1.1** and **Database Schema/Data Dictionary v1.0** into a PostgreSQL-first backend with a small FastAPI application. The database remains canonical; the application exposes query-only read models and server-rendered catalogue pages without replacing the ingestion or evidence contracts.
 
@@ -52,6 +52,7 @@ The setup service is repeatable. It records applied migration filenames in the e
 - Bibliographic Work → Expression → Manifestation → Item hierarchy
 - Material-culture objects with measurements, marks, production, condition, holdings, provenance, and images
 - Unified PostgreSQL search across names, menu text, object marks, and transcriptions
+- Reviewed wiki articles with immutable revisions, canonical citations, and entity links
 - HTML catalogue views for entities, taxonomy, menus, and search
 - Health check and generated interactive API documentation
 
@@ -65,7 +66,7 @@ The current public preview is available at [food-history-staging.onrender.com](h
 
 ## Public self-hosting
 
-`compose.production.yaml` runs PostgreSQL on an internal-only network, starts the read-only catalogue without synthetic fixtures, and binds the application only to host loopback by default. Tailscale can provide private HTTPS access without opening router ports. A disabled `public` profile contains the future Caddy HTTPS edge for the eventual website launch. The operations package includes guarded backup/restore scripts, health checks, deliberate updates, boot recovery, and systemd timers. Follow `docs/SELF_HOSTING.md`; do not expose the development Compose stack publicly.
+`compose.production.yaml` runs PostgreSQL on an internal-only network and binds the editorial application only to host loopback by default. Tailscale can provide private HTTPS access without opening router ports. A disabled `public` profile contains a separate read-only application process and Caddy HTTPS edge for the eventual website launch. Follow `docs/SELF_HOSTING.md` and `docs/WIKI.md`; do not expose the development Compose stack publicly.
 
 ## Development without Compose
 
@@ -82,7 +83,7 @@ uvicorn app.main:app --reload
 
 Run `pytest -q` for the complete suite when `DATABASE_URL` points at the migrated test database. Without `DATABASE_URL`, the two PostgreSQL integration tests skip. Run `ruff check app tools/bootstrap_db.py tests` for application linting.
 
-The complete conceptual design contains 85 tables. The current implementation intentionally starts with the 56 Phase 1 tables.
+The complete conceptual design began with 85 planned research-data tables. The implementation contains 56 Phase 1 research tables plus 8 wiki/editorial tables.
 
 ## Version baseline
 
