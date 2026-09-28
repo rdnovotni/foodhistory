@@ -83,7 +83,7 @@ class Repository:
                 JOIN selected_terms parent ON parent.term_id = edge.parent_term_id
                 WHERE edge.edge_type = 'broader'
             )
-            SELECT DISTINCT e.public_id, e.preferred_label, e.canonical_slug,
+            SELECT e.public_id, e.preferred_label, e.canonical_slug,
                    e.summary, e.record_status, e.visibility,
                    type.code AS entity_type_code,
                    type.preferred_label AS entity_type_label
