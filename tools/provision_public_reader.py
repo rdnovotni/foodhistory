@@ -18,13 +18,18 @@ def provision(database_url: str, username: str, password: str) -> None:
             "SELECT 1 FROM pg_roles WHERE rolname = %s", (username,)
         ).fetchone()
         role = sql.Identifier(username)
+        password_literal = sql.Literal(password)
         if exists:
             connection.execute(
-                sql.SQL("ALTER ROLE {} LOGIN PASSWORD %s").format(role), (password,)
+                sql.SQL("ALTER ROLE {} LOGIN PASSWORD {}").format(
+                    role, password_literal
+                )
             )
         else:
             connection.execute(
-                sql.SQL("CREATE ROLE {} LOGIN PASSWORD %s").format(role), (password,)
+                sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(
+                    role, password_literal
+                )
             )
         connection.execute(sql.SQL(
             "ALTER ROLE {} NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
