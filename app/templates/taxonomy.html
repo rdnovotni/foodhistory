@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ vocabulary_code }} taxonomy · Food History{% endblock %}
+{% block content %}
+<section><p class="eyebrow">Vocabulary {{ vocabulary_code }}</p><h1>Taxonomy terms</h1>
+<form method="get" class="filters"><label>Label search <input name="q" value="{{ q }}"></label><label>Direct parent code <input name="parent_code" value="{{ parent_code }}"></label><button>Apply filters</button></form>
+<div class="result-list">{% for term in terms %}<article><p class="code">{{ term.code }}</p><h2>{{ term.preferred_label }}</h2>{% if term.scope_note %}<p>{{ term.scope_note }}</p>{% endif %}</article>{% else %}<p class="empty">No terms match these filters.</p>{% endfor %}</div></section>
+{% endblock %}

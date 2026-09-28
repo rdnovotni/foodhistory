@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Search · Food History{% endblock %}
+{% block content %}
+<section><p class="eyebrow">Discovery</p><h1>Search</h1><form method="get" class="search-form"><label for="q">Names, menu text, object marks, and transcriptions</label><div><input id="q" name="q" value="{{ q }}" required><button>Search</button></div><div class="filter-row"><input name="type_code" value="{{ type_code }}" placeholder="Entity type code"><input name="term_code" value="{{ term_code }}" placeholder="Taxonomy term code"></div></form>
+{% if page %}<div class="result-list">{% for hit in page['items'] %}<article><p class="code">{{ hit.entity.type.code }} · relevance {{ '%.2f'|format(hit.score) }}</p><h2><a href="/entities/{{ hit.entity.public_id }}">{{ hit.entity.label }}</a></h2>{% if hit.snippet %}<p>{{ hit.snippet }}</p>{% endif %}</article>{% else %}<p class="empty">No public records matched “{{ q }}”.</p>{% endfor %}</div>{% if page.next_cursor %}<a class="next" href="?q={{ q|urlencode }}&type_code={{ type_code|urlencode }}&term_code={{ term_code|urlencode }}&cursor={{ page.next_cursor|urlencode }}">Next page →</a>{% endif %}{% endif %}</section>
+{% endblock %}
