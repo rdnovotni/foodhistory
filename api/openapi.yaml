@@ -207,10 +207,22 @@ components:
       allOf:
         - {$ref: '#/components/schemas/WikiPageSummary'}
         - type: object
-          required: [revision_number, body_html, entities, citations, categories, images]
+          required: [revision_number, body_html, toc, backlinks, entities, citations, categories, images]
           properties:
             revision_number: {type: integer, minimum: 1}
             body_html: {type: string, description: Sanitized server-rendered article HTML}
+            toc:
+              type: array
+              items:
+                type: object
+                required: [id, title, level]
+                properties:
+                  id: {type: string}
+                  title: {type: string}
+                  level: {type: integer, minimum: 2, maximum: 4}
+            backlinks:
+              type: array
+              items: {$ref: '#/components/schemas/WikiPageSummary'}
             entities:
               type: array
               items:

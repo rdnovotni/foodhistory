@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 
 from app.auth import digest_secret, verify_password
 from app.db import Database
+from app.wiki_render import wiki_link_slugs
 
 
 class WikiRepository:
@@ -41,6 +42,43 @@ class WikiRepository:
     def list_editor_categories(self) -> list[dict[str, Any]]:
         return self.db.fetch_all(
             "SELECT slug, name, description FROM wiki_category ORDER BY name"
+        )
+
+    def search_wiki_pages(self, q: str, limit: int = 12) -> list[dict[str, Any]]:
+        return self.db.fetch_all(
+            "SELECT slug, title FROM public_wiki_page "
+            "WHERE slug ILIKE %s OR title ILIKE %s ORDER BY title LIMIT %s",
+            (f"%{q}%", f"%{q}%", limit),
+        )
+
+    def public_link_targets(self, slugs: list[str]) -> dict[str, dict[str, Any]]:
+        if not slugs:
+            return {}
+        rows = self.db.fetch_all(
+            "SELECT source_slug, target_slug FROM public_wiki_redirect WHERE source_slug = ANY(%s)",
+            (slugs,),
+        )
+        redirects = {row["source_slug"]: row["target_slug"] for row in rows}
+        pages = self.db.fetch_all(
+            "SELECT slug, title FROM public_wiki_page WHERE slug = ANY(%s)",
+            (list(set(slugs) | set(redirects.values())),),
+        )
+        targets = {row["slug"]: row for row in pages}
+        return {slug: targets[target] for slug in slugs
+                if (target := redirects.get(slug, slug)) in targets}
+
+    def backlinks(self, slug: str) -> list[dict[str, Any]]:
+        return self.db.fetch_all(
+            """
+            SELECT DISTINCT source.slug, source.title, source.summary
+            FROM public_wiki_revision_link l
+            JOIN public_wiki_page source ON source.revision_id = l.revision_id
+            WHERE l.target_slug = %s OR l.target_slug IN (
+                SELECT source_slug FROM public_wiki_redirect WHERE target_slug = %s
+            )
+            ORDER BY source.title
+            """,
+            (slug, slug),
         )
 
     def get_published(self, slug: str) -> dict[str, Any] | None:
@@ -316,6 +354,14 @@ class WikiRepository:
             )
 
     @staticmethod
+    def _attach_wiki_links(connection: Any, revision_id: UUID, body: str) -> None:
+        for sequence, slug in enumerate(wiki_link_slugs(body), 1):
+            connection.execute(
+                "INSERT INTO wiki_revision_link (revision_id, target_slug, sequence) "
+                "VALUES (%s, %s, %s)", (revision_id, slug, sequence),
+            )
+
+    @staticmethod
     def _category_slug(name: str) -> str:
         value = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
         value = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
@@ -354,6 +400,7 @@ class WikiRepository:
                 connection, revision_id, entity_public_ids, citation_ids,
                 category_names, images,
             )
+            self._attach_wiki_links(connection, revision_id, body_markdown)
             connection.execute(
                 "UPDATE wiki_page SET current_revision_id = %s WHERE page_id = %s",
                 (revision_id, page_id),
@@ -395,6 +442,7 @@ class WikiRepository:
                 connection, revision_id, entity_public_ids, citation_ids,
                 category_names, images,
             )
+            self._attach_wiki_links(connection, revision_id, body_markdown)
             connection.execute(
                 "UPDATE wiki_page SET current_revision_id = %s, status = 'draft' WHERE page_id = %s",
                 (revision_id, page_id),

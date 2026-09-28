@@ -104,8 +104,13 @@ def test_wiki_schema_and_public_database_role_are_read_only():
         connection.execute("SET search_path TO food_history, public")
         assert connection.execute("SELECT count(*) FROM public_wiki_page").fetchone()[0] == 0
         assert connection.execute("SELECT count(*) FROM public_wiki_category").fetchone()[0] == 0
+        assert connection.execute("SELECT count(*) FROM public_wiki_revision_link").fetchone()[0] == 0
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             connection.execute("SELECT * FROM wiki_revision_image")
+    with psycopg.connect(reader_url) as connection:
+        connection.execute("SET search_path TO food_history, public")
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            connection.execute("SELECT * FROM wiki_revision_link")
     with psycopg.connect(reader_url) as connection:
         connection.execute("SET search_path TO food_history, public")
         with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
@@ -155,3 +160,13 @@ def test_wiki_revision_category_review_and_publication_workflow(repository):
     assert published["revision_number"] == 2
     assert published["categories"][0]["name"] == "Methods"
     assert wiki.list_published(q="Second")[0]["slug"] == "integration-article"
+    source_id = wiki.create_page(
+        slug="integration-link-source", title="Link source", summary="A link fixture.",
+        body_markdown="See [[integration-article]].", change_note="Link", user_id=account_id,
+        entity_public_ids=[], citation_ids=[], category_names=[], images=[],
+    )
+    assert wiki.backlinks("integration-article") == []
+    wiki.review(source_id, "submitted", "Ready", account_id)
+    wiki.review(source_id, "approved", "Approved", account_id)
+    wiki.publish(source_id)
+    assert wiki.backlinks("integration-article")[0]["slug"] == "integration-link-source"

@@ -16,7 +16,7 @@ from PIL import Image, UnidentifiedImageError
 from app.auth import digest_secret, new_secret
 from app.config import Settings
 from app.db import Database
-from app.wiki_render import render_markdown
+from app.wiki_render import render_article, wiki_link_slugs
 from app.wiki_repository import WikiRepository
 
 SESSION_COOKIE = "fh_editor_session"
@@ -84,7 +84,9 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
             if page:
                 return RedirectResponse(f"/v1/wiki/pages/{page['redirect_slug']}", status_code=308)
             raise HTTPException(status_code=404, detail="Wiki page not found")
-        page["body_html"] = render_markdown(page.pop("body_markdown"))
+        body = page.pop("body_markdown")
+        page.update(render_article(body, repo.public_link_targets(wiki_link_slugs(body))))
+        page["backlinks"] = repo.backlinks(page["slug"])
         return page
 
     @router.get("/wiki", response_class=HTMLResponse, include_in_schema=False)
@@ -132,7 +134,9 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
             return RedirectResponse(f"/wiki/{page['redirect_slug']}", status_code=308)
         if not page:
             raise HTTPException(status_code=404, detail="Wiki page not found")
-        page["body_html"] = render_markdown(page["body_markdown"])
+        page.update(render_article(page["body_markdown"],
+                                   repo.public_link_targets(wiki_link_slugs(page["body_markdown"]))))
+        page["backlinks"] = repo.backlinks(page["slug"])
         return templates.TemplateResponse(
             request=request, name="wiki_page.html", context={"page": page}
         )
@@ -290,7 +294,8 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         return templates.TemplateResponse(
             request=request,
             name="editor_preview.html",
-            context={"title": title, "body_html": render_markdown(body_markdown)},
+            context={"title": title, **render_article(
+                body_markdown, repo.public_link_targets(wiki_link_slugs(body_markdown)))},
         )
 
     @router.get("/editor/pages/{page_id}", response_class=HTMLResponse, include_in_schema=False)
@@ -341,6 +346,11 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
     def entity_picker(request: Request, repo: WikiRepo, q: str = "") -> list[dict[str, Any]]:
         _require_account(request, repo)
         return repo.search_entities(q.strip()) if q.strip() else []
+
+    @router.get("/editor/pickers/wiki", include_in_schema=False)
+    def wiki_picker(request: Request, repo: WikiRepo, q: str = "") -> list[dict[str, Any]]:
+        _require_account(request, repo)
+        return repo.search_wiki_pages(q.strip()) if q.strip() else []
 
     @router.get("/editor/pickers/citations", include_in_schema=False)
     def citation_picker(request: Request, repo: WikiRepo, q: str = "") -> list[dict[str, Any]]:

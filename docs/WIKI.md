@@ -10,6 +10,7 @@ The wiki is a narrative layer over the canonical Food History catalogue. Article
 - `wiki_revision_entity` links a particular revision to canonical entity public records.
 - `wiki_revision_citation` links a particular revision to canonical citation locators. Evidence stays in the existing citation/assertion model.
 - `wiki_redirect` preserves renamed article URLs.
+- `wiki_revision_link` indexes `[[slug]]` references in each immutable revision; public backlinks only use the currently published revision.
 
 Only the revision selected by `published_revision_id` is visible at `/wiki` or `/v1/wiki/pages`. Drafts and review history never appear through public routes.
 
@@ -56,3 +57,11 @@ Article search uses PostgreSQL full-text indexing over the selected published re
 Image uploads accept JPEG, PNG, WebP, and GIF, verify the actual image format, enforce `MEDIA_MAX_BYTES`, compute SHA-256, and store one content-addressed file under `MEDIA_ROOT`. PostgreSQL stores the canonical `digital_resource` record and revision-specific placement, caption, and required alternative text. Uploaded resources remain staff-only until an approved attached revision is published. Only rights-cleared media should be uploaded; record more detailed rights and restrictions using the canonical rights model before public launch.
 
 The starter briefs under `content/wiki-starters/` are editorial checklists, not historical claims. They intentionally contain citation placeholders and must not be published until a researcher replaces every placeholder with evidence-backed prose and links.
+
+## Article navigation and links
+
+Use `##`, `###`, and `####` headings to create an automatic on-page table of contents. Repeated headings get distinct anchors. The article breadcrumb goes through its first assigned category, when one exists; all categories remain visible as tags.
+
+Use `[[page-slug]]` for a wiki link with the destination's current title, or `[[page-slug|custom label]]` for chosen text. The editor suggests published pages while typing after `[[`. References inside code and ordinary Markdown links are ignored. Links to unpublished or missing pages show as unresolved text until the target is published. Old slugs resolve through published redirects. “What links here” lists published articles whose published revision references the page, including references through redirects. A page without backlinks omits that section.
+
+After applying migration `0016_wiki_links.sql` to a database with existing articles, run `python tools/backfill_wiki_links.py` once with `DATABASE_URL` set to the editorial database. The command can be safely rerun and never changes authored revisions. The public reader must be reprovisioned so it can read the new publication view while the base link table stays private.
