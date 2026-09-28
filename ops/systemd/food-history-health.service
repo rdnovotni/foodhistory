@@ -1,0 +1,11 @@
+[Unit]
+Description=Check the private Food History health endpoint
+After=network-online.target food-history.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=foodhistory
+Group=foodhistory
+WorkingDirectory=/opt/foodhistory
+ExecStart=/opt/foodhistory/ops/healthcheck.sh http://127.0.0.1:8000

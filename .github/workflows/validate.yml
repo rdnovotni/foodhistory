@@ -35,7 +35,7 @@ jobs:
       - name: Static package validation
         run: python tools/validate_package.py
       - name: Lint application
-        run: ruff check app tools/bootstrap_db.py tests
+        run: ruff check app tools/bootstrap_db.py tools/smoke_test.py tools/start_web.py tests
       - name: Apply bootstrap migrations
         run: |
           for f in migrations/000{1..8}_*.sql; do
@@ -63,6 +63,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate Compose configuration
-        run: docker compose config --quiet
+        run: |
+          docker compose config --quiet
+          docker compose --env-file .env.production.example -f compose.production.yaml config --quiet
+          docker compose --env-file .env.production.example -f compose.production.yaml --profile public config --quiet
+          sh -n ops/*.sh
+      - name: Validate public Caddy edge
+        run: >-
+          docker run --rm
+          --env PUBLIC_HOST=history.example.com
+          --env ACME_EMAIL=admin@example.com
+          --volume "$PWD/ops/Caddyfile:/etc/caddy/Caddyfile:ro"
+          caddy:2-alpine
+          caddy validate --config /etc/caddy/Caddyfile
       - name: Build application image
         run: docker build --tag food-history:test .

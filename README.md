@@ -31,6 +31,7 @@ The setup service is repeatable. It records applied migration filenames in the e
 - `app/` — read-only FastAPI routes, PostgreSQL query layer, templates, and styles.
 - `tests/` — API/UI unit tests and PostgreSQL integration tests.
 - `compose.yaml` and `Dockerfile` — reproducible local application stack.
+- `compose.production.yaml` and `ops/` — private-first self-hosting, backups, monitoring, service units, and a dormant public HTTPS edge.
 
 ## Bootstrap order
 
@@ -61,6 +62,10 @@ All public queries enforce `entity.visibility = 'public'`. They return public ID
 `render.yaml` defines a free, disposable Render preview with a Docker web service and private managed PostgreSQL 16 database. See `docs/STAGING.md` for free-tier limits, provisioning, reviewed-data requirements, smoke testing, backup verification, and the production gate. A durable staging or production environment requires a database plan with backups and retention beyond the free database's 30-day lifetime.
 
 The current public preview is available at [food-history-staging.onrender.com](https://food-history-staging.onrender.com).
+
+## Public self-hosting
+
+`compose.production.yaml` runs PostgreSQL on an internal-only network, starts the read-only catalogue without synthetic fixtures, and binds the application only to host loopback by default. Tailscale can provide private HTTPS access without opening router ports. A disabled `public` profile contains the future Caddy HTTPS edge for the eventual website launch. The operations package includes guarded backup/restore scripts, health checks, deliberate updates, boot recovery, and systemd timers. Follow `docs/SELF_HOSTING.md`; do not expose the development Compose stack publicly.
 
 ## Development without Compose
 
