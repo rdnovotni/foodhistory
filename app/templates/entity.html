@@ -6,6 +6,8 @@
   <h1>{{ entity.preferred_label }}</h1>
   <p class="code">{{ entity.public_id }} · {{ entity.record_status }}</p>
   {% if entity.summary %}<p class="lede">{{ entity.summary }}</p>{% endif %}
+  {% if entity.type.code == 'ENT.WORK' %}<p><a class="next" href="/works/{{ entity.public_id }}">View bibliographic hierarchy →</a></p>{% endif %}
+  {% if entity.type.code == 'ENT.OBJ' %}<p><a class="next" href="/objects/{{ entity.public_id }}">View object catalogue record →</a></p>{% endif %}
   {% if entity.primary_image and entity.primary_image.uri %}<img class="primary-image" src="{{ entity.primary_image.uri }}" alt="{{ entity.primary_image.caption or entity.preferred_label }}">{% endif %}
   {% if entity.names %}<section><h2>Names</h2><ul>{% for name in entity.names %}<li>{{ name.text }} <small>{{ name.type }}{% if name.language %}, {{ name.language }}{% endif %}</small></li>{% endfor %}</ul></section>{% endif %}
   {% if entity.terms %}<section><h2>Classification</h2><div class="tags">{% for assignment in entity.terms %}<span>{{ assignment.term.label }} <small>{{ assignment.kind }}</small></span>{% endfor %}</div></section>{% endif %}

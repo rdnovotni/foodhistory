@@ -548,6 +548,382 @@ class Repository:
             item.pop("_cursor_id", None)
         return {"items": items, "next_cursor": next_cursor}
 
+    def get_work(self, public_id: str) -> dict[str, Any] | None:
+        entity = self.get_entity(public_id)
+        if not entity:
+            return None
+        work = self.db.fetch_one(
+            """
+            SELECT work.entity_id, work.original_language_tag, work.creation_edtf,
+                   type.code AS work_type_code, type.preferred_label AS work_type_label
+            FROM work
+            LEFT JOIN taxonomy_term type ON type.term_id = work.work_type_term_id
+            WHERE work.entity_id = (SELECT entity_id FROM entity WHERE public_id = %s)
+            """,
+            (public_id,),
+        )
+        if not work:
+            return None
+        entity.update(
+            {
+                "work_type": self._term(work["work_type_code"], work["work_type_label"]),
+                "original_language": work["original_language_tag"],
+                "creation_date": work["creation_edtf"],
+            }
+        )
+        credits = self.db.fetch_all(
+            """
+            SELECT agent.public_id AS agent_public_id,
+                   agent.preferred_label AS agent_label,
+                   agent_type.code AS agent_type_code,
+                   agent_type.preferred_label AS agent_type_label,
+                   role.code AS role_code, role.preferred_label AS role_label,
+                   credit.credited_as, credit.sequence
+            FROM credit
+            JOIN entity agent ON agent.entity_id = credit.agent_entity_id
+                             AND agent.visibility = 'public'
+            JOIN taxonomy_term agent_type ON agent_type.term_id = agent.entity_type_term_id
+            LEFT JOIN taxonomy_term role ON role.term_id = credit.role_term_id
+            WHERE credit.resource_entity_id = %s
+            ORDER BY credit.sequence NULLS LAST, agent.preferred_label
+            """,
+            (work["entity_id"],),
+        )
+        entity["credits"] = [
+            {
+                "agent": self._entity_ref(row, "agent_"),
+                "role": self._term(row["role_code"], row["role_label"]),
+                "credited_as": row["credited_as"],
+                "sequence": row["sequence"],
+            }
+            for row in credits
+        ]
+        expressions = self.db.fetch_all(
+            """
+            SELECT expression.entity_id, expression.language_tag,
+                   expression.version_statement, expression.expression_edtf,
+                   entity.public_id, entity.preferred_label AS label,
+                   type.code AS type_code, type.preferred_label AS type_label
+            FROM expression
+            JOIN entity ON entity.entity_id = expression.entity_id
+                       AND entity.visibility = 'public'
+            JOIN taxonomy_term type ON type.term_id = entity.entity_type_term_id
+            WHERE expression.work_entity_id = %s
+            ORDER BY expression.expression_edtf NULLS LAST, entity.preferred_label
+            """,
+            (work["entity_id"],),
+        )
+        expression_ids = [row["entity_id"] for row in expressions]
+        result_expressions = []
+        for row in expressions:
+            result_expressions.append(
+                {
+                    "entity": self._entity_ref(row),
+                    "language": row["language_tag"],
+                    "version_statement": row["version_statement"],
+                    "date": row["expression_edtf"],
+                }
+            )
+
+        manifestations: list[dict[str, Any]] = []
+        if expression_ids:
+            manifestation_rows = self.db.fetch_all(
+                """
+                SELECT manifestation.entity_id, manifestation.edition_statement,
+                       manifestation.publication_edtf, manifestation.extent_text,
+                       manifestation.isbn, manifestation.issn, manifestation.oclc_number,
+                       entity.public_id, entity.preferred_label AS label,
+                       type.code AS type_code, type.preferred_label AS type_label,
+                       array_agg(expression_entity.public_id ORDER BY relation.sequence NULLS LAST)
+                           AS expression_public_ids
+                FROM manifestation_expression relation
+                JOIN manifestation ON manifestation.entity_id = relation.manifestation_entity_id
+                JOIN entity ON entity.entity_id = manifestation.entity_id
+                           AND entity.visibility = 'public'
+                JOIN taxonomy_term type ON type.term_id = entity.entity_type_term_id
+                JOIN entity expression_entity ON expression_entity.entity_id = relation.expression_entity_id
+                WHERE relation.expression_entity_id = ANY(%s)
+                GROUP BY manifestation.entity_id, entity.entity_id, type.term_id
+                ORDER BY manifestation.publication_edtf NULLS LAST, entity.preferred_label
+                """,
+                (expression_ids,),
+            )
+            for row in manifestation_rows:
+                statements = self.db.fetch_all(
+                    """
+                    SELECT statement.statement_type, statement.date_edtf,
+                           statement.statement_text, statement.sequence,
+                           agent.public_id AS agent_public_id,
+                           agent.preferred_label AS agent_label,
+                           place.public_id AS place_public_id,
+                           place.preferred_label AS place_label
+                    FROM publication_statement statement
+                    LEFT JOIN entity agent ON agent.entity_id = statement.agent_entity_id
+                                           AND agent.visibility = 'public'
+                    LEFT JOIN entity place ON place.entity_id = statement.place_entity_id
+                                           AND place.visibility = 'public'
+                    WHERE statement.manifestation_entity_id = %s
+                    ORDER BY statement.sequence NULLS LAST, statement.publication_statement_id
+                    """,
+                    (row["entity_id"],),
+                )
+                manifestations.append(
+                    {
+                        "entity": self._entity_ref(row),
+                        "expression_public_ids": row["expression_public_ids"],
+                        "edition_statement": row["edition_statement"],
+                        "publication_date": row["publication_edtf"],
+                        "extent": row["extent_text"],
+                        "isbn": row["isbn"],
+                        "issn": row["issn"],
+                        "oclc_number": row["oclc_number"],
+                        "publication_statements": [
+                            {
+                                "type": statement["statement_type"],
+                                "date": statement["date_edtf"],
+                                "text": statement["statement_text"],
+                                "agent": self._entity_ref(statement, "agent_"),
+                                "place": self._entity_ref(statement, "place_"),
+                            }
+                            for statement in statements
+                        ],
+                    }
+                )
+
+        items = self.db.fetch_all(
+            """
+            SELECT item.copy_number, item.item_status, item.signed_flag,
+                   item.inscription_summary, entity.public_id,
+                   entity.preferred_label AS label,
+                   type.code AS type_code, type.preferred_label AS type_label,
+                   manifestation_entity.public_id AS manifestation_public_id
+            FROM item
+            JOIN entity ON entity.entity_id = item.entity_id
+                       AND entity.visibility = 'public'
+            JOIN taxonomy_term type ON type.term_id = entity.entity_type_term_id
+            JOIN manifestation_expression relation
+                 ON relation.manifestation_entity_id = item.manifestation_entity_id
+            JOIN expression ON expression.entity_id = relation.expression_entity_id
+            JOIN entity manifestation_entity
+                 ON manifestation_entity.entity_id = item.manifestation_entity_id
+            WHERE expression.work_entity_id = %s
+            ORDER BY entity.preferred_label, entity.public_id
+            """,
+            (work["entity_id"],),
+        )
+        return {
+            "work": entity,
+            "expressions": result_expressions,
+            "manifestations": manifestations,
+            "items": [
+                {
+                    **self._entity_ref(row),
+                    "manifestation_public_id": row["manifestation_public_id"],
+                    "status": row["item_status"],
+                    "copy_number": row["copy_number"],
+                    "signed": row["signed_flag"],
+                    "inscription_summary": row["inscription_summary"],
+                }
+                for row in items
+            ],
+        }
+
+    def get_object(self, public_id: str) -> dict[str, Any] | None:
+        entity = self.get_entity(public_id)
+        if not entity:
+            return None
+        record = self.db.fetch_one(
+            """
+            SELECT object.entity_id, object.authenticity_status,
+                   object.manufacture_edtf, object.material_summary,
+                   object.completeness_text, object.object_note,
+                   type.code AS object_type_code,
+                   type.preferred_label AS object_type_label
+            FROM physical_object object
+            JOIN taxonomy_term type ON type.term_id = object.object_type_term_id
+            WHERE object.entity_id = (SELECT entity_id FROM entity WHERE public_id = %s)
+            """,
+            (public_id,),
+        )
+        if not record:
+            return None
+        entity.update(
+            {
+                "object_type": self._term(
+                    record["object_type_code"], record["object_type_label"]
+                ),
+                "authenticity_status": record["authenticity_status"],
+                "manufacture_date": record["manufacture_edtf"],
+                "materials": record["material_summary"],
+                "completeness": record["completeness_text"],
+                "object_note": record["object_note"],
+            }
+        )
+        entity["measurements"] = self.db.fetch_all(
+            """
+            SELECT measurement_type AS type, value, value_min, value_max,
+                   unit_code AS unit, display_text, method_note
+            FROM measurement WHERE entity_id = %s
+            ORDER BY measurement_type, measurement_id
+            """,
+            (record["entity_id"],),
+        )
+        marks = self.db.fetch_all(
+            """
+            SELECT mark.mark_type AS type, mark.transcription,
+                   mark.normalized_text, mark.location_on_object AS location,
+                   mark.date_code_text AS date_code, mark.note,
+                   maker.public_id AS maker_public_id,
+                   maker.preferred_label AS maker_label
+            FROM object_mark mark
+            LEFT JOIN entity maker ON maker.entity_id = mark.maker_entity_id
+                                  AND maker.visibility = 'public'
+            WHERE mark.entity_id = %s
+            ORDER BY mark.object_mark_id
+            """,
+            (record["entity_id"],),
+        )
+        entity["marks"] = [
+            {
+                "type": row["type"],
+                "transcription": row["transcription"],
+                "normalized_text": row["normalized_text"],
+                "location": row["location"],
+                "date_code": row["date_code"],
+                "note": row["note"],
+                "maker": self._entity_ref(row, "maker_"),
+            }
+            for row in marks
+        ]
+        productions = self.db.fetch_all(
+            """
+            SELECT production.model_or_pattern, production.design_number,
+                   production.batch_or_lot_code, production.date_edtf,
+                   production.note, process.code AS process_code,
+                   process.preferred_label AS process_label,
+                   manufacturer.public_id AS manufacturer_public_id,
+                   manufacturer.preferred_label AS manufacturer_label,
+                   place.public_id AS place_public_id,
+                   place.preferred_label AS place_label
+            FROM production_record production
+            LEFT JOIN taxonomy_term process ON process.term_id = production.process_term_id
+            LEFT JOIN entity manufacturer
+                   ON manufacturer.entity_id = production.manufacturer_entity_id
+                  AND manufacturer.visibility = 'public'
+            LEFT JOIN entity place ON place.entity_id = production.production_place_entity_id
+                                  AND place.visibility = 'public'
+            WHERE production.entity_id = %s
+            ORDER BY production.date_edtf NULLS LAST, production.production_record_id
+            """,
+            (record["entity_id"],),
+        )
+        entity["production"] = [
+            {
+                "manufacturer": self._entity_ref(row, "manufacturer_"),
+                "place": self._entity_ref(row, "place_"),
+                "date": row["date_edtf"],
+                "model_or_pattern": row["model_or_pattern"],
+                "design_number": row["design_number"],
+                "batch_or_lot_code": row["batch_or_lot_code"],
+                "process": self._term(row["process_code"], row["process_label"]),
+                "note": row["note"],
+            }
+            for row in productions
+        ]
+        entity["condition_assessments"] = self.db.fetch_all(
+            """
+            SELECT assessment.assessment_date, assessment.condition_text,
+                   assessment.completeness_text, assessment.restoration_text,
+                   condition.code AS condition_code,
+                   condition.preferred_label AS condition_label
+            FROM condition_assessment assessment
+            LEFT JOIN taxonomy_term condition ON condition.term_id = assessment.condition_term_id
+            WHERE assessment.entity_id = %s
+            ORDER BY assessment.assessment_date DESC NULLS LAST,
+                     assessment.condition_assessment_id
+            """,
+            (record["entity_id"],),
+        )
+        holding = self.db.fetch_one(
+            """
+            SELECT holding.accession_number, holding.local_call_number,
+                   holding.storage_location, holding.valid_from_edtf,
+                   holding.valid_to_edtf,
+                   holder.public_id AS holder_public_id,
+                   holder.preferred_label AS holder_label,
+                   collection.public_id AS collection_public_id,
+                   collection.preferred_label AS collection_label
+            FROM holding
+            JOIN entity holder ON holder.entity_id = holding.holder_entity_id
+                              AND holder.visibility = 'public'
+            LEFT JOIN entity collection ON collection.entity_id = holding.collection_entity_id
+                                       AND collection.visibility = 'public'
+            WHERE holding.item_entity_id = %s AND holding.is_current = true
+            ORDER BY holding.updated_at DESC, holding.holding_id
+            LIMIT 1
+            """,
+            (record["entity_id"],),
+        )
+        if holding:
+            entity["current_holding"] = {
+                "holder": self._entity_ref(holding, "holder_"),
+                "collection": self._entity_ref(holding, "collection_"),
+                "accession_number": holding["accession_number"],
+                "local_call_number": holding["local_call_number"],
+                "storage_location": holding["storage_location"],
+                "valid_from": holding["valid_from_edtf"],
+                "valid_to": holding["valid_to_edtf"],
+            }
+        else:
+            entity["current_holding"] = None
+        provenance = self.db.fetch_all(
+            """
+            SELECT provenance.event_type, provenance.date_edtf, provenance.note,
+                   source.public_id AS source_public_id,
+                   source.preferred_label AS source_label,
+                   destination.public_id AS destination_public_id,
+                   destination.preferred_label AS destination_label,
+                   place.public_id AS place_public_id,
+                   place.preferred_label AS place_label
+            FROM provenance_event provenance
+            LEFT JOIN entity source ON source.entity_id = provenance.from_entity_id
+                                   AND source.visibility = 'public'
+            LEFT JOIN entity destination ON destination.entity_id = provenance.to_entity_id
+                                        AND destination.visibility = 'public'
+            LEFT JOIN entity place ON place.entity_id = provenance.place_entity_id
+                                  AND place.visibility = 'public'
+            WHERE provenance.subject_entity_id = %s
+            ORDER BY provenance.date_edtf NULLS LAST, provenance.provenance_event_id
+            """,
+            (record["entity_id"],),
+        )
+        entity["provenance"] = [
+            {
+                "type": row["event_type"],
+                "date": row["date_edtf"],
+                "from": self._entity_ref(row, "source_"),
+                "to": self._entity_ref(row, "destination_"),
+                "place": self._entity_ref(row, "place_"),
+                "note": row["note"],
+            }
+            for row in provenance
+        ]
+        entity["images"] = self.db.fetch_all(
+            """
+            SELECT representation.role_code AS role, resource.storage_uri AS uri,
+                   resource.iiif_manifest_uri, resource.mime_type,
+                   resource.width_px, resource.height_px, representation.caption
+            FROM digital_representation representation
+            JOIN digital_resource resource ON resource.entity_id = representation.digital_entity_id
+            JOIN entity digital ON digital.entity_id = resource.entity_id
+            WHERE representation.represented_entity_id = %s
+              AND digital.visibility = 'public'
+            ORDER BY representation.is_primary DESC, representation.sequence NULLS LAST
+            """,
+            (record["entity_id"],),
+        )
+        return entity
+
     def search(
         self,
         q: str,

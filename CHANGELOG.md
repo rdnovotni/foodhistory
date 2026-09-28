@@ -1,5 +1,12 @@
 # Changelog
 
+## Catalogue completion v1.2 — 2026-09-27
+
+- Implemented the contracted bibliographic Work hierarchy API and catalogue view.
+- Implemented the contracted material-culture Object API and catalogue view.
+- Added a staging blueprint with private managed PostgreSQL, pre-deploy migrations, health checks, and platform-port startup.
+- Added deployed-catalogue smoke testing and reviewed-data acceptance guidance.
+
 ## Public catalogue v1.1 — 2026-09-27
 
 - Added the first runnable FastAPI public catalogue and generated API documentation.

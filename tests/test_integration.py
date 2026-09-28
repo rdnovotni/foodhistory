@@ -51,6 +51,33 @@ def test_synthetic_menu_read_model_and_search(repository):
     assert any(item["entity"]["label"] == "Apple pie" for item in results["items"])
 
 
+def test_synthetic_bibliographic_work_tree(repository):
+    page = repository.list_entities(q="Practical Kitchen Ledger", type_code="ENT.WORK")
+    assert len(page["items"]) == 1
+
+    tree = repository.get_work(page["items"][0]["public_id"])
+    assert tree is not None
+    assert tree["work"]["work_type"]["code"] == "ROT.DOC.BOOK.COOK"
+    assert len(tree["expressions"]) == 1
+    assert len(tree["manifestations"]) == 1
+    assert tree["manifestations"][0]["publication_date"] == "1912"
+    assert tree["items"][0]["copy_number"] == "Fixture copy 1"
+
+
+def test_synthetic_material_culture_object(repository):
+    page = repository.list_entities(q="embossed soda bottle", type_code="ENT.OBJ")
+    assert len(page["items"]) == 1
+
+    record = repository.get_object(page["items"][0]["public_id"])
+    assert record is not None
+    assert record["object_type"]["code"] == "ROT.OBJ.PACK.BOTTLE"
+    assert record["manufacture_date"] == "1938~"
+    assert len(record["measurements"]) == 2
+    assert len(record["marks"]) == 2
+    assert record["current_holding"]["accession_number"] == "TEST-OBJ-0001"
+    assert len(record["images"]) == 2
+
+
 def test_real_http_application_smoke():
     with TestClient(create_app()) as client:
         assert client.get("/health").json()["status"] == "ok"

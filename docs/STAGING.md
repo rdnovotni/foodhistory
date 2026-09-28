@@ -1,0 +1,42 @@
+# Staging deployment and acceptance
+
+## Provision
+
+`render.yaml` defines a Docker web service and a private managed PostgreSQL 16 database. Import the repository as a Render Blueprint, review the proposed compute plans and region, and apply it. The web service receives its private database connection automatically and runs `python tools/bootstrap_db.py` before each deployment.
+
+The staging release job applies all unapplied migrations and the deterministic taxonomy seed. It intentionally does not set `LOAD_EXAMPLES`; synthetic fixtures must never be mistaken for staging research data.
+
+After Render reports the service healthy, run:
+
+```console
+python tools/smoke_test.py --base-url https://your-staging-host.example
+```
+
+The same check is available from GitHub Actions under **Staging smoke test** and accepts the public staging URL as a manual input.
+
+## Load reviewed acceptance data
+
+Prepare one reviewed package of each supported ingest type:
+
+- one menu with a real source citation, transcription, sections, and normalized foods;
+- one cookbook Work → Expression → Manifestation → Item hierarchy;
+- one material-culture object with measurements, marks, condition, holding, provenance, and rights review.
+
+Run the existing transactional loaders against staging only after the packages have passed schema validation and a researcher has confirmed that they are not synthetic examples. Keep the source packages outside the public repository when they contain restricted locations, rights details, or private collection data.
+
+## Acceptance checklist
+
+- `/health` returns HTTP 200 and `status: ok`.
+- The homepage and generated API documentation load over HTTPS.
+- Entity browse and search never reveal `staff`, `registered`, or `restricted` entities.
+- Taxonomy counts total 1,392 and descendant filters return expected records.
+- Menu pages preserve printed wording and separately show normalized food links.
+- Work pages show the complete Work → Expression → Manifestation → Item chain.
+- Object pages show measurements, marks, production, condition, current holding, provenance, and public images.
+- Assertions retain claim status, confidence, validity strings, and supporting or contradicting citations.
+- A database restore test has been completed using the hosting provider's backup/export mechanism.
+- Application logs contain no database URLs, credentials, restricted notes, or source excerpts beyond public responses.
+
+## Production gate
+
+Do not promote staging until the acceptance checklist passes with reviewed data, a backup restore has been demonstrated, and the final public hostname, monitoring ownership, retention policy, and budget have named owners.
