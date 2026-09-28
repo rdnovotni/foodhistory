@@ -153,7 +153,7 @@ class Repository:
                    script_code AS script, valid_from_edtf AS valid_from,
                    valid_to_edtf AS valid_to
             FROM entity_name WHERE entity_id = %s
-            ORDER BY is_preferred DESC, name_text
+            ORDER BY is_preferred_in_language DESC, name_text
             """,
             (row["entity_id"],),
         )
