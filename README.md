@@ -60,6 +60,8 @@ All public queries enforce `entity.visibility = 'public'`. They return public ID
 
 `render.yaml` defines a free, disposable Render preview with a Docker web service and private managed PostgreSQL 16 database. See `docs/STAGING.md` for free-tier limits, provisioning, reviewed-data requirements, smoke testing, backup verification, and the production gate. A durable staging or production environment requires a database plan with backups and retention beyond the free database's 30-day lifetime.
 
+The current public preview is available at [food-history-staging.onrender.com](https://food-history-staging.onrender.com).
+
 ## Development without Compose
 
 With Python 3.12 and an already migrated PostgreSQL database:

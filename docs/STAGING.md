@@ -11,10 +11,12 @@ The staging release job applies all unapplied migrations and the deterministic t
 After Render reports the service healthy, run:
 
 ```console
-python tools/smoke_test.py --base-url https://your-staging-host.example
+python tools/smoke_test.py --base-url https://food-history-staging.onrender.com
 ```
 
 The same check is available from GitHub Actions under **Staging smoke test** and accepts the public staging URL as a manual input.
+
+The current service was connected through the repository's public URL rather than a GitHub account integration. Render does not provide automatic deploys for that connection type. After merging application changes, manually deploy the latest `main` commit from the service dashboard, then rerun the smoke test.
 
 ## Load reviewed acceptance data
 
