@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ menu.preferred_label }} · Food History{% endblock %}
+{% block content %}
+<article class="detail"><p class="eyebrow">{{ menu.menu_type.label }}</p><h1>{{ menu.preferred_label }}</h1><p class="code">{{ menu.public_id }}{% if menu.service_date %} · {{ menu.service_date }}{% endif %}</p>
+{% if menu.establishment %}<p class="lede">Served by <a href="/entities/{{ menu.establishment.public_id }}">{{ menu.establishment.label }}</a></p>{% endif %}
+{% for section in menu.sections %}<section class="menu-section"><h2>{{ section.heading_original or 'Menu items' }}</h2><ol>{% for item in section['items'] %}<li><div><strong>{{ item.printed_name }}</strong>{% if item.printed_description %}<p>{{ item.printed_description }}</p>{% endif %}{% if item.normalized_food %}<a class="normalized" href="/entities/{{ item.normalized_food.public_id }}">Normalized as {{ item.normalized_food.label }}</a>{% endif %}</div><span>{{ item.price_text or '' }}</span></li>{% endfor %}</ol></section>{% endfor %}
+</article>
+{% endblock %}

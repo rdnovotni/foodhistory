@@ -30,3 +30,17 @@ Citations should identify the smallest practical locator: page, folio, image, ti
 Preserve source wording even when normalization is possible. Menu item names, recipe ingredient lines, inscriptions, marks, package text, prices, and transcriptions should retain their original form.
 
 All synthetic fixtures must be clearly identified as synthetic and must never be presented as historical evidence.
+
+## Application changes
+
+The public application is query-only. New writes belong in the transactional ingestion workflow, and read models must continue to use public IDs, preserve original wording, enforce visibility, and keep evidence attached to historical assertions.
+
+Install the development dependencies and run the application checks before opening a pull request:
+
+```bash
+pip install -r requirements-dev.txt
+ruff check app tools/bootstrap_db.py tests
+pytest -q -m "not integration"
+```
+
+Run the complete suite against a migrated PostgreSQL test database by setting `DATABASE_URL` and using `pytest -q`. The normal GitHub Actions job does this automatically.

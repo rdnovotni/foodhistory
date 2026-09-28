@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Taxonomy · Food History{% endblock %}
+{% block content %}
+<section><p class="eyebrow">Knowledge organization</p><h1>Controlled vocabularies</h1><p class="lede">The taxonomy is versioned data, not application code.</p>
+<div class="card-grid">{% for vocabulary in vocabularies %}<a class="card" href="/taxonomy/{{ vocabulary.code }}"><span class="code">{{ vocabulary.code }}</span><h2>{{ vocabulary.name }}</h2><p>{{ vocabulary.term_count }} terms</p></a>{% endfor %}</div></section>
+{% endblock %}

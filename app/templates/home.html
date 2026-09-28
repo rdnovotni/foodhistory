@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Food History catalogue{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">A research catalogue</p>
+  <h1>Foodways live in sources, objects, places, and people.</h1>
+  <p>Explore historical entities and the evidence that connects them without flattening uncertain or contested claims.</p>
+  <form action="/search" method="get" class="search-form">
+    <label for="home-q">Search the catalogue</label>
+    <div><input id="home-q" name="q" required><button>Search</button></div>
+  </form>
+</section>
+<section>
+  <div class="section-heading"><h2>Controlled vocabularies</h2><a href="/taxonomy">Browse all</a></div>
+  <div class="card-grid">
+    {% for vocabulary in vocabularies %}
+    <a class="card" href="/taxonomy/{{ vocabulary.code }}">
+      <span class="code">{{ vocabulary.code }}</span>
+      <h3>{{ vocabulary.name }}</h3>
+      <p>{{ vocabulary.term_count }} terms · version {{ vocabulary.version or 'unversioned' }}</p>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

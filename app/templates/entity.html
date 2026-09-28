@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ entity.preferred_label }} · Food History{% endblock %}
+{% block content %}
+<article class="detail">
+  <p class="eyebrow">{{ entity.type.label }}</p>
+  <h1>{{ entity.preferred_label }}</h1>
+  <p class="code">{{ entity.public_id }} · {{ entity.record_status }}</p>
+  {% if entity.summary %}<p class="lede">{{ entity.summary }}</p>{% endif %}
+  {% if entity.primary_image and entity.primary_image.uri %}<img class="primary-image" src="{{ entity.primary_image.uri }}" alt="{{ entity.primary_image.caption or entity.preferred_label }}">{% endif %}
+  {% if entity.names %}<section><h2>Names</h2><ul>{% for name in entity.names %}<li>{{ name.text }} <small>{{ name.type }}{% if name.language %}, {{ name.language }}{% endif %}</small></li>{% endfor %}</ul></section>{% endif %}
+  {% if entity.terms %}<section><h2>Classification</h2><div class="tags">{% for assignment in entity.terms %}<span>{{ assignment.term.label }} <small>{{ assignment.kind }}</small></span>{% endfor %}</div></section>{% endif %}
+  {% if entity.identifiers %}<section><h2>Identifiers</h2><dl>{% for identifier in entity.identifiers %}<dt>{{ identifier.scheme }}</dt><dd>{% if identifier.uri %}<a href="{{ identifier.uri }}">{{ identifier.value }}</a>{% else %}{{ identifier.value }}{% endif %}</dd>{% endfor %}</dl></section>{% endif %}
+  <section><h2>Evidence-bearing assertions</h2>
+    {% for assertion in assertions %}<article class="assertion"><h3>{{ assertion.predicate.label }}</h3><p>{% if assertion.object %}<a href="/entities/{{ assertion.object.public_id }}">{{ assertion.object.label }}</a>{% else %}{{ assertion.value }}{% endif %}</p><p class="code">{{ assertion.evidence|length }} cited evidence record{% if assertion.evidence|length != 1 %}s{% endif %}</p></article>
+    {% else %}<p class="empty">No public assertions are recorded.</p>{% endfor %}
+  </section>
+</article>
+{% endblock %}

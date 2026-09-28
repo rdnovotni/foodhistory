@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Entities · Food History{% endblock %}
+{% block content %}
+<section>
+  <p class="eyebrow">Catalogue</p><h1>Entities</h1>
+  <form method="get" class="filters">
+    <label>Keyword <input name="q" value="{{ q }}"></label>
+    <label>Entity type code <input name="type_code" value="{{ type_code }}" placeholder="ENT.CUL.FOOD"></label>
+    <label>Taxonomy term <input name="term_code" value="{{ term_code }}"></label>
+    <button>Apply filters</button>
+  </form>
+  <div class="result-list">
+    {% for entity in page['items'] %}
+    <article>
+      <p class="code">{{ entity.type.code }} · {{ entity.public_id }}</p>
+      <h2><a href="/entities/{{ entity.public_id }}">{{ entity.preferred_label }}</a></h2>
+      {% if entity.summary %}<p>{{ entity.summary }}</p>{% endif %}
+    </article>
+    {% else %}<p class="empty">No public entities match these filters.</p>{% endfor %}
+  </div>
+  {% if page.next_cursor %}<a class="next" href="?q={{ q|urlencode }}&type_code={{ type_code|urlencode }}&term_code={{ term_code|urlencode }}&cursor={{ page.next_cursor|urlencode }}">Next page →</a>{% endif %}
+</section>
+{% endblock %}
