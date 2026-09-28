@@ -2,9 +2,9 @@
 
 ## Provision
 
-`render.yaml` defines a Docker web service and a private managed PostgreSQL 16 database. Both resources explicitly use Render's free plan so this preview can be provisioned without a paid compute commitment. Import the repository as a Render Blueprint, review the proposed region, and apply it. The web service receives its private database connection automatically and runs `python tools/bootstrap_db.py` before each deployment.
+`render.yaml` defines a Docker web service and a private managed PostgreSQL 16 database. Both resources explicitly use Render's free plan so this preview can be provisioned without a paid compute commitment. Import the repository as a Render Blueprint, review the proposed region, and apply it. The web service receives its private database connection automatically. Because Render does not support pre-deploy commands on free web services, `RUN_DB_BOOTSTRAP=true` makes the container apply the idempotent migrations and deterministic taxonomy seed before starting the server.
 
-This is disposable preview infrastructure, not production staging. The free web service spins down while idle and can take about a minute to wake. The free PostgreSQL database is limited to 1 GB, has no managed backups, and expires 30 days after creation. Export any reviewed acceptance data that must survive, or move the database to a paid plan before expiry.
+This is disposable preview infrastructure, not production staging. The free web service spins down while idle and can take about a minute to wake; the database check adds a little more startup work. The free PostgreSQL database is limited to 1 GB, has no managed backups, and expires 30 days after creation. Export any reviewed acceptance data that must survive, or move the database to a paid plan before expiry.
 
 The staging release job applies all unapplied migrations and the deterministic taxonomy seed. It intentionally does not set `LOAD_EXAMPLES`; synthetic fixtures must never be mistaken for staging research data.
 

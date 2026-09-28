@@ -6,6 +6,7 @@
 - Implemented the contracted material-culture Object API and catalogue view.
 - Added a staging blueprint with private managed PostgreSQL, pre-deploy migrations, health checks, and platform-port startup.
 - Made the preview blueprint explicitly use Render's free web and PostgreSQL plans and documented their disposable, no-backup limits.
+- Moved the free preview's idempotent database bootstrap into container startup because Render free services do not support pre-deploy commands.
 - Added deployed-catalogue smoke testing and reviewed-data acceptance guidance.
 
 ## Public catalogue v1.1 — 2026-09-27
