@@ -16,6 +16,8 @@ venv/
 
 # Local operations data
 backups/
+media/
+var/
 
 # Local databases / dumps
 *.sqlite

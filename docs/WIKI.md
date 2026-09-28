@@ -46,3 +46,13 @@ The production Compose file uses two independent application processes:
 - `public_web` runs in public mode, has no editor routes, and is the only application process reachable from Caddy's public network.
 
 They deliberately share the canonical PostgreSQL database. The setup job provisions `PUBLIC_DATABASE_USER` with only `CONNECT`, schema `USAGE`, and `SELECT` privileges, enables PostgreSQL's read-only transaction default for that role, and gives `public_web` only those credentials. Credentials, sessions, review records, drafts, and base wiki tables are explicitly revoked; security-barrier views expose only published revisions and their public catalogue links.
+
+## Phase 2 authoring tools
+
+The article form provides authenticated type-ahead lookup for entities, canonical citations, and existing image resources. Pickers store stable IDs in the revision; labels remain display conveniences. Categories are also revision-specific and become publicly browsable only when their attached revision is published.
+
+Article search uses PostgreSQL full-text indexing over the selected published revision's title, summary, and Markdown. The editorial history screen lists every immutable revision and compares any two versions side by side.
+
+Image uploads accept JPEG, PNG, WebP, and GIF, verify the actual image format, enforce `MEDIA_MAX_BYTES`, compute SHA-256, and store one content-addressed file under `MEDIA_ROOT`. PostgreSQL stores the canonical `digital_resource` record and revision-specific placement, caption, and required alternative text. Uploaded resources remain staff-only until an approved attached revision is published. Only rights-cleared media should be uploaded; record more detailed rights and restrictions using the canonical rights model before public launch.
+
+The starter briefs under `content/wiki-starters/` are editorial checklists, not historical claims. They intentionally contain citation placeholders and must not be published until a researcher replaces every placeholder with evidence-backed prose and links.

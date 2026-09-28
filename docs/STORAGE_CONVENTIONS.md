@@ -31,3 +31,9 @@ For multi-page documents, one canvas per page/image. `transcription_segment.iiif
 ## Integrity
 
 Compute SHA-256 at ingest before publication. The Phase 1 database enforces uniqueness for non-null managed hashes. If a file already exists, create another representation link rather than storing duplicate bytes.
+
+## Wiki editorial media
+
+Private wiki uploads use the same principle in a local managed-media volume. Files are stored as `<sha256>/asset.<ext>` beneath `MEDIA_ROOT`; the database `storage_uri` is `/media/<sha256>/asset.<ext>`. The private process can inspect all registered media, while the public process serves a URI only when `public_wiki_revision_image` proves it belongs to a currently published revision.
+
+The production backup job creates a PostgreSQL dump and a matching `.media.tar.gz` archive with the same timestamp. Treat the pair as one backup set.
