@@ -46,7 +46,10 @@ def provision(database_url: str, username: str, password: str) -> None:
         )
         connection.execute(
             sql.SQL("REVOKE ALL ON TABLE {} FROM {}").format(
-                sql.SQL(", ").join(sql.Identifier(name) for name in private_tables), role
+                sql.SQL(", ").join(
+                    sql.Identifier("food_history", name) for name in private_tables
+                ),
+                role,
             )
         )
         connection.execute(sql.SQL("ALTER ROLE {} SET default_transaction_read_only = on").format(role))
