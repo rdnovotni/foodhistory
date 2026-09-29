@@ -103,7 +103,7 @@ $template$, true),
 {"title":"Bibliography","citation_ids":[]}
 ```
 $template$, true),
-('restaurant', 1, 'restaurant', 'Restaurant history, locations, menus and ownership.', $template$
+('restaurant', 1, 'restaurant', 'Restaurant article', 'Restaurant history, locations, menus and ownership.', $template$
 ```fh-infobox
 {"public_id":"FH-REPLACE"}
 ```
@@ -130,7 +130,7 @@ $template$, true),
 {"title":"Bibliography","citation_ids":[]}
 ```
 $template$, true),
-('person', 1, 'person', 'Biography focused on documented food-history work and influence.', $template$
+('person', 1, 'person', 'Person article', 'Biography focused on documented food-history work and influence.', $template$
 ```fh-infobox
 {"public_id":"FH-REPLACE"}
 ```
@@ -151,7 +151,7 @@ $template$, true),
 {"title":"Bibliography","citation_ids":[]}
 ```
 $template$, true),
-('company', 1, 'company', 'Company chronology, brands, products and historical impact.', $template$
+('company', 1, 'company', 'Company article', 'Company chronology, brands, products and historical impact.', $template$
 ```fh-infobox
 {"public_id":"FH-REPLACE"}
 ```
@@ -172,7 +172,7 @@ $template$, true),
 {"title":"Bibliography","citation_ids":[]}
 ```
 $template$, true),
-('book', 1, 'book', 'Publication history, contents, reception and source excerpts.', $template$
+('book', 1, 'book', 'Book article', 'Publication history, contents, reception and source excerpts.', $template$
 ```fh-infobox
 {"public_id":"FH-REPLACE"}
 ```
@@ -195,7 +195,7 @@ $template$, true),
 {"title":"Bibliography","citation_ids":[]}
 ```
 $template$, true),
-('object', 1, 'object', 'Material, manufacture, use, provenance and visual comparison.', $template$
+('object', 1, 'object', 'Object article', 'Material, manufacture, use, provenance and visual comparison.', $template$
 ```fh-infobox
 {"public_id":"FH-REPLACE"}
 ```
