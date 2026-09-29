@@ -173,7 +173,7 @@ def test_password_hashing_and_markdown_sanitizing():
 
 
 def test_outline_and_links_ignore_code_and_existing_links():
-    source = ("## Origins & names\n\n[[apple-pie]] and [[apple-pie|<Pie>]]; "
+    source = ("## Origins & [[apple-pie|names]]\n\n[[apple-pie]] and [[apple-pie|<Pie>]]; "
               "[[draft-page]] and `[[code-page]]` and [normal](https://example.org).\n\n"
               "```\n[[fenced-page]]\n```\n\n### Origins & names\n\n## Origins & names")
     assert wiki_link_slugs(source) == ["apple-pie", "draft-page"]
@@ -181,6 +181,7 @@ def test_outline_and_links_ignore_code_and_existing_links():
     assert [item["id"] for item in result["toc"]] == [
         "origins-names", "origins-names-2", "origins-names-3",
     ]
+    assert result["toc"][0]["title"] == "Origins & names"
     assert 'href="/wiki/apple-pie"' in result["body_html"]
     assert "&lt;Pie&gt;" in result["body_html"]
     assert 'class="wiki-missing"' in result["body_html"]
