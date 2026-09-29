@@ -903,10 +903,19 @@ class WikiRepository:
         revision_id = uuid4()
         with self.db.connection() as connection:
             locked = connection.execute(
-                "SELECT page_id FROM wiki_page WHERE page_id = %s FOR UPDATE", (page_id,)
+                "SELECT page_id, current_revision_id FROM wiki_page "
+                "WHERE page_id = %s FOR UPDATE", (page_id,)
             ).fetchone()
             if not locked:
                 raise ValueError("Wiki page not found")
+            if not template_key:
+                inherited = connection.execute(
+                    "SELECT template_key, template_version FROM wiki_revision_template "
+                    "WHERE revision_id = %s", (locked["current_revision_id"],),
+                ).fetchone()
+                if inherited:
+                    template_key = inherited["template_key"]
+                    template_version = inherited["template_version"]
             page = connection.execute(
                 "SELECT COALESCE(max(revision_number), 0) + 1 AS next_number "
                 "FROM wiki_revision WHERE page_id = %s",
