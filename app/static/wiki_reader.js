@@ -58,4 +58,22 @@
   });
   card.addEventListener('pointerleave', hide);
   document.addEventListener('keydown', event => { if (event.key === 'Escape') hide(); });
+  article.querySelectorAll('[data-map]').forEach(map => {
+    const plot = map.querySelector('.map-plot');
+    const points = [...map.querySelectorAll('[data-map-point]')].map(item => ({
+      item, latitude: Number(item.dataset.latitude), longitude: Number(item.dataset.longitude)
+    })).filter(point => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
+    if (!plot || !points.length) return;
+    const latitudes = points.map(point => point.latitude);
+    const longitudes = points.map(point => point.longitude);
+    const minLat = Math.min(...latitudes), maxLat = Math.max(...latitudes);
+    const minLon = Math.min(...longitudes), maxLon = Math.max(...longitudes);
+    points.forEach(point => {
+      const marker = document.createElement('span');
+      marker.className = 'map-marker'; marker.textContent = point.item.querySelector('strong')?.textContent || 'Location';
+      marker.style.left = `${10 + 80 * (point.longitude - minLon) / (maxLon - minLon || 1)}%`;
+      marker.style.top = `${90 - 80 * (point.latitude - minLat) / (maxLat - minLat || 1)}%`;
+      plot.append(marker);
+    });
+  });
 })();

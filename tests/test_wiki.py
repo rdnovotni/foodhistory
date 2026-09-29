@@ -9,6 +9,7 @@ from app.config import Settings
 from app.main import create_app, get_repository
 from app.wiki_render import glossary_slugs, render_article, render_markdown, wiki_link_slugs
 from app.wiki_routes import get_wiki_repository
+from app.wiki_structures import structure_references
 from tests.test_app import FakeRepository
 
 
@@ -33,6 +34,28 @@ class FakeWikiRepository:
 
     def list_series(self):
         return []
+
+    def list_article_templates(self):
+        return [{"template_key": "dish", "version": 1, "article_type": "dish",
+                 "title": "Dish article", "description": "Dish structure"}]
+
+    def get_article_template(self, key, version=None):
+        return {"template_key": key, "version": version or 1, "article_type": key,
+                "title": "Dish article", "description": "Dish structure",
+                "body_markdown": "## Overview", "migration_markdown": ""} if key == "dish" else None
+
+    def list_template_versions(self):
+        return [{**self.list_article_templates()[0], "is_current": True, "created_at": "now",
+                 "migration_markdown": ""}]
+
+    def create_template_version(self, key, article_type, title, description, body_markdown,
+                                migration_markdown):
+        self.created_template = (key, article_type, title, description, body_markdown,
+                                 migration_markdown)
+        return 2
+
+    def structured_block_data(self, references):
+        return {}
 
     def create_series(self, slug, title, description):
         self.created_series = (slug, title, description)
@@ -201,6 +224,34 @@ def test_glossary_and_footnotes_are_safe_and_previewable():
     assert 'id="fn1"' in result["body_html"]
 
 
+def test_structured_blocks_render_controlled_markup_and_collect_references():
+    source = '''```fh-infobox
+{"public_id":"FH-FOOD-1"}
+```
+```fh-notice
+{"title":"Research note","tone":"research","text":"<script>Not executable</script>"}
+```
+```fh-source-excerpt
+{"citation_id":"00000000-0000-0000-0000-000000000001"}
+```
+```fh-gallery
+{"public_ids":["FH-DIG-1"]}
+```'''
+    references = structure_references(source)
+    assert references["entities"] == ["FH-FOOD-1"]
+    assert references["citations"] == ["00000000-0000-0000-0000-000000000001"]
+    assert references["media"] == ["FH-DIG-1"]
+    result = render_article(source, structures={
+        "entities": {"FH-FOOD-1": {"public_id": "FH-FOOD-1", "label": "Apple pie",
+                                      "type_label": "Dish"}},
+        "citations": {}, "media": {"FH-DIG-1": {"uri": "/media/pie.jpg", "label": "Pie"}},
+    })
+    assert "Canonical record" in result["body_html"]
+    assert "Research note" in result["body_html"]
+    assert "&lt;script&gt;Not executable&lt;/script&gt;" in result["body_html"]
+    assert '<img src="/media/pie.jpg" alt="Pie">' in result["body_html"]
+
+
 def test_public_wiki_reads_only_published_content():
     client, _ = make_client()
     assert "Apple pie" in client.get("/wiki").text
@@ -240,6 +291,8 @@ def test_editor_can_sign_in_and_create_draft_with_csrf_protection():
     )
     assert signed_in.status_code == 303
     csrf = client.cookies.get("fh_editor_csrf")
+    template_page = client.get("/editor/pages/new", params={"template": "dish"})
+    assert "## Overview" in template_page.text
     rejected = client.post(
         "/editor/pages",
         data={"csrf_token": "wrong", "slug": "apple-pie", "title": "Apple pie", "body_markdown": "Text"},
@@ -250,6 +303,7 @@ def test_editor_can_sign_in_and_create_draft_with_csrf_protection():
         data={
             "csrf_token": csrf, "slug": "apple-pie", "title": "Apple pie",
             "body_markdown": "Text", "entity_public_ids": "FH-TEST",
+            "template_key": "dish", "template_version": "1",
         },
         follow_redirects=False,
     )
@@ -257,6 +311,8 @@ def test_editor_can_sign_in_and_create_draft_with_csrf_protection():
     assert wiki.created["entity_public_ids"] == ["FH-TEST"]
     assert wiki.created["category_names"] == []
     assert wiki.created["is_disambiguation"] is False
+    assert wiki.created["template_key"] == "dish"
+    assert wiki.created["template_version"] == 1
     with_empty_optional_numbers = client.post(
         "/editor/pages", data={"csrf_token": csrf, "slug": "second-page", "title": "Second page",
                                "body_markdown": "Text", "series_position": "", "event_month": "",
@@ -276,6 +332,14 @@ def test_editor_can_manage_series_glossary_and_redirects():
     assert client.post("/editor/glossary", data={"csrf_token": csrf, "slug": "sagamite",
                     "term": "Sagamité", "definition": "A corn preparation.", "is_published": "true"}).status_code == 200
     assert wiki.saved_term[-1] is True
+    assert "Version history" in client.get("/editor/templates").text
+    response = client.post("/editor/templates", data={
+        "csrf_token": csrf, "key": "dish", "article_type": "dish",
+        "title": "Dish article", "body_markdown": "## Overview",
+        "migration_markdown": "## New section",
+    }, follow_redirects=False)
+    assert response.status_code == 303
+    assert wiki.created_template[0:3] == ("dish", "dish", "Dish article")
     client.post("/editor/pages/test/redirects", data={"csrf_token": csrf, "slug": "old-pie"})
     assert wiki.redirect == "old-pie"
 

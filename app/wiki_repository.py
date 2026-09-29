@@ -44,6 +44,169 @@ class WikiRepository:
             "SELECT slug, name, description FROM wiki_category ORDER BY name"
         )
 
+    def list_article_templates(self) -> list[dict[str, Any]]:
+        return self.db.fetch_all(
+            "SELECT template_key, version, article_type, title, description "
+            "FROM wiki_article_template WHERE is_current ORDER BY title"
+        )
+
+    def get_article_template(self, key: str, version: int | None = None) -> dict[str, Any] | None:
+        return self.db.fetch_one(
+            "SELECT template_key, version, article_type, title, description, body_markdown, "
+            "migration_markdown FROM wiki_article_template WHERE template_key = %s "
+            "AND (%s::integer IS NULL AND is_current OR version = %s) "
+            "ORDER BY version DESC LIMIT 1",
+            (key, version, version),
+        )
+
+    def list_template_versions(self) -> list[dict[str, Any]]:
+        return self.db.fetch_all(
+            "SELECT template_key, version, article_type, title, description, "
+            "migration_markdown, is_current, created_at FROM wiki_article_template "
+            "ORDER BY template_key, version DESC"
+        )
+
+    def create_template_version(self, key: str, article_type: str, title: str,
+                                description: str, body_markdown: str,
+                                migration_markdown: str) -> int:
+        with self.db.connection() as connection:
+            rows = connection.execute(
+                "SELECT version, article_type FROM wiki_article_template WHERE template_key = %s "
+                "ORDER BY version DESC FOR UPDATE", (key,),
+            ).fetchall()
+            if rows and rows[0]["article_type"] != article_type:
+                raise ValueError("A template's article type cannot change between versions")
+            version = (rows[0]["version"] + 1) if rows else 1
+            connection.execute(
+                "UPDATE wiki_article_template SET is_current = false "
+                "WHERE template_key = %s AND is_current", (key,),
+            )
+            connection.execute(
+                "INSERT INTO wiki_article_template "
+                "(template_key, version, article_type, title, description, body_markdown, "
+                "migration_markdown, is_current) VALUES (%s, %s, %s, %s, %s, %s, %s, true)",
+                (key, version, article_type, title, description, body_markdown,
+                 migration_markdown),
+            )
+        return version
+
+    def structured_block_data(self, references: dict[str, list[str]]) -> dict[str, Any]:
+        """Resolve only public canonical records requested by authored blocks."""
+        result: dict[str, Any] = {
+            "entities": {}, "citations": {}, "menus": {}, "prices": {}, "media": {},
+        }
+        if references["entities"]:
+            rows = self.db.fetch_all(
+                """
+                SELECT e.entity_id, e.public_id, e.preferred_label AS label,
+                       type.preferred_label AS type_label,
+                       person.birth_edtf, person.death_edtf, person.occupation_summary,
+                       organization.founded_edtf, organization.dissolved_edtf,
+                       organization.website_uri, place.latitude, place.longitude,
+                       place.current_address_text, work.creation_edtf,
+                       object.manufacture_edtf, object.material_summary,
+                       (SELECT string_agg(x.scheme_code || ': ' || x.identifier_value, '; '
+                                          ORDER BY x.scheme_code)
+                        FROM external_identifier x WHERE x.entity_id = e.entity_id) AS identifiers
+                FROM entity e JOIN taxonomy_term type ON type.term_id = e.entity_type_term_id
+                LEFT JOIN person ON person.entity_id = e.entity_id
+                LEFT JOIN organization ON organization.entity_id = e.entity_id
+                LEFT JOIN place ON place.entity_id = e.entity_id
+                LEFT JOIN work ON work.entity_id = e.entity_id
+                LEFT JOIN physical_object object ON object.entity_id = e.entity_id
+                WHERE e.public_id = ANY(%s) AND e.visibility = 'public'
+                """,
+                (references["entities"],),
+            )
+            for row in rows:
+                row["dates"] = "–".join(
+                    str(value) for value in (row.pop("birth_edtf"), row.pop("death_edtf")) if value
+                ) or None
+                row["occupation"] = row.pop("occupation_summary")
+                row["founded"] = "–".join(
+                    str(value) for value in (row.pop("founded_edtf"), row.pop("dissolved_edtf")) if value
+                ) or None
+                row["website"] = row.pop("website_uri")
+                row["address"] = row.pop("current_address_text")
+                row["creation_date"] = row.pop("creation_edtf")
+                row["manufacture_date"] = row.pop("manufacture_edtf")
+                row["materials"] = row.pop("material_summary")
+                result["entities"][row["public_id"]] = row
+        citation_ids = []
+        for value in references["citations"]:
+            try:
+                citation_ids.append(UUID(value))
+            except ValueError:
+                continue
+        if citation_ids:
+            rows = self.db.fetch_all(
+                """
+                SELECT c.citation_id, c.locator_text, c.page_label, c.stable_uri, c.excerpt,
+                       source.public_id AS source_public_id,
+                       source.preferred_label AS source_label
+                FROM citation c JOIN entity source ON source.entity_id = c.source_entity_id
+                WHERE c.citation_id = ANY(%s) AND source.visibility = 'public'
+                """,
+                (citation_ids,),
+            )
+            result["citations"] = {str(row["citation_id"]): row for row in rows}
+        if references["media"]:
+            rows = self.db.fetch_all(
+                """
+                SELECT e.public_id, e.preferred_label AS label, resource.storage_uri AS uri
+                FROM digital_resource resource JOIN entity e ON e.entity_id = resource.entity_id
+                WHERE e.public_id = ANY(%s) AND e.visibility = 'public'
+                  AND resource.mime_type LIKE 'image/%%'
+                """,
+                (references["media"],),
+            )
+            result["media"] = {row["public_id"]: row for row in rows}
+        if references["menus"]:
+            menus = self.db.fetch_all(
+                """
+                SELECT e.entity_id, e.public_id, e.preferred_label AS label,
+                       menu.service_date_edtf AS date
+                FROM menu JOIN entity e ON e.entity_id = menu.entity_id
+                WHERE e.public_id = ANY(%s) AND e.visibility = 'public'
+                """, (references["menus"],),
+            )
+            for menu in menus:
+                menu["items"] = self.db.fetch_all(
+                    "SELECT printed_name AS name, printed_description AS description, "
+                    "coalesce(price_text, concat_ws(' ', price_amount, currency_code)) AS price "
+                    "FROM menu_item WHERE menu_entity_id = %s ORDER BY sequence",
+                    (menu.pop("entity_id"),),
+                )
+                result["menus"][menu["public_id"]] = menu
+        if references["prices"]:
+            rows = self.db.fetch_all(
+                """
+                SELECT subject.public_id, price.date_edtf AS date,
+                       coalesce(price.amount_text,
+                           concat_ws(' ', price.amount, price.currency_code, price.basis_text)) AS display,
+                       place.preferred_label AS place, citation.citation_id,
+                       citation.locator_text, citation.page_label, citation.excerpt,
+                       source.public_id AS source_public_id,
+                       source.preferred_label AS source_label
+                FROM price_observation price
+                JOIN entity subject ON subject.entity_id = price.subject_entity_id
+                JOIN citation ON citation.citation_id = price.citation_id
+                JOIN entity source ON source.entity_id = citation.source_entity_id
+                LEFT JOIN entity place ON place.entity_id = price.place_entity_id
+                WHERE subject.public_id = ANY(%s) AND subject.visibility = 'public'
+                  AND source.visibility = 'public'
+                ORDER BY price.date_edtf, price.price_observation_id
+                """, (references["prices"],),
+            )
+            for row in rows:
+                citation = {key: row.pop(key) for key in (
+                    "citation_id", "locator_text", "page_label", "excerpt",
+                    "source_public_id", "source_label",
+                )}
+                row["citation"] = citation
+                result["prices"].setdefault(row.pop("public_id"), []).append(row)
+        return result
+
     def list_series(self) -> list[dict[str, Any]]:
         return self.db.fetch_all("SELECT slug, title, description FROM wiki_series ORDER BY title")
 
@@ -326,6 +489,11 @@ class WikiRepository:
             "FROM public_wiki_revision_metadata WHERE revision_id = %s",
             (page["revision_id"],),
         ) or {"is_disambiguation": False, "event_month": None, "event_day": None}
+        page["template"] = self.db.fetch_one(
+            "SELECT template_key, template_version, article_type, title "
+            "FROM public_wiki_revision_template WHERE revision_id = %s",
+            (page["revision_id"],),
+        )
         page["related"] = self.related_pages(
             page["revision_id"], slug, suggest=not page["metadata"]["is_disambiguation"]
         )
@@ -475,6 +643,16 @@ class WikiRepository:
             "SELECT is_disambiguation, event_month, event_day FROM wiki_revision_metadata "
             "WHERE revision_id = %s", (revision_id,),
         ) or {"is_disambiguation": False, "event_month": None, "event_day": None}
+        page["template"] = self.db.fetch_one(
+            "SELECT link.template_key, link.template_version, link.migrated_from_version, "
+            "template.article_type, template.title, "
+            "(SELECT version FROM wiki_article_template latest "
+            " WHERE latest.template_key = link.template_key AND latest.is_current) AS latest_version "
+            "FROM wiki_revision_template link JOIN wiki_article_template template "
+            "ON template.template_key = link.template_key AND template.version = link.template_version "
+            "WHERE link.revision_id = %s",
+            (revision_id,),
+        )
         page["redirects"] = self.list_redirects(page_id)
         return page
 
@@ -612,6 +790,27 @@ class WikiRepository:
             )
 
     @staticmethod
+    def _attach_template(connection: Any, revision_id: UUID, template_key: str,
+                         template_version: int | None,
+                         migrated_from_version: int | None = None) -> None:
+        if not template_key:
+            return
+        template = connection.execute(
+            "SELECT version FROM wiki_article_template WHERE template_key = %s "
+            "AND (%s::integer IS NULL AND is_current OR version = %s) "
+            "ORDER BY version DESC LIMIT 1",
+            (template_key, template_version, template_version),
+        ).fetchone()
+        if not template:
+            raise ValueError("Unknown article template version")
+        connection.execute(
+            "INSERT INTO wiki_revision_template "
+            "(revision_id, template_key, template_version, migrated_from_version) "
+            "VALUES (%s, %s, %s, %s)",
+            (revision_id, template_key, template["version"], migrated_from_version),
+        )
+
+    @staticmethod
     def _category_slug(name: str) -> str:
         value = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
         value = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
@@ -638,6 +837,9 @@ class WikiRepository:
         is_disambiguation: bool = False,
         event_month: int | None = None,
         event_day: int | None = None,
+        template_key: str = "",
+        template_version: int | None = None,
+        migrated_from_version: int | None = None,
     ) -> str:
         page_id, revision_id = uuid4(), uuid4()
         public_id = f"FH-WIKI-{str(page_id).split('-')[0].upper()}"
@@ -661,6 +863,9 @@ class WikiRepository:
                 category_names, images,
             )
             self._attach_wiki_links(connection, revision_id, body_markdown)
+            self._attach_template(
+                connection, revision_id, template_key, template_version, migrated_from_version
+            )
             self._attach_reading_metadata(
                 connection, revision_id, series_slug=series_slug, series_position=series_position,
                 related_slugs=related_slugs or [], is_disambiguation=is_disambiguation,
@@ -691,6 +896,9 @@ class WikiRepository:
         is_disambiguation: bool = False,
         event_month: int | None = None,
         event_day: int | None = None,
+        template_key: str = "",
+        template_version: int | None = None,
+        migrated_from_version: int | None = None,
     ) -> None:
         revision_id = uuid4()
         with self.db.connection() as connection:
@@ -714,6 +922,9 @@ class WikiRepository:
                 category_names, images,
             )
             self._attach_wiki_links(connection, revision_id, body_markdown)
+            self._attach_template(
+                connection, revision_id, template_key, template_version, migrated_from_version
+            )
             self._attach_reading_metadata(
                 connection, revision_id, series_slug=series_slug, series_position=series_position,
                 related_slugs=related_slugs or [], is_disambiguation=is_disambiguation,

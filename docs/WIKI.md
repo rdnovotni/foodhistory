@@ -78,3 +78,25 @@ After applying migration `0016_wiki_links.sql` to a database with existing artic
 - Standard Markdown footnotes (`[^1]` and a matching `[^1]: Definition`) render with anchors; hovering or focusing the reference previews the note without scrolling. Inline HTML remains disabled, and rendered markup is sanitized.
 
 Apply migration 0017 through the normal bootstrap and reprovision the public database reader to grant the new public views while revoking the six new private tables. The bootstrap remains safe to rerun. The recovered publication timestamp for an existing page uses its last page update as the best available approximation.
+
+## Reusable article structures
+
+New articles may start from a versioned dish, ingredient, restaurant, person, company, book, or object template. The chosen template and version are recorded on each revision. When a newer immutable template version exists, the editor offers an upgrade that creates a new article revision, preserves authored content and links, appends the version's migration Markdown, and records the prior version.
+
+Reusable structures are fenced JSON blocks whose language begins with `fh-`. They remain legible in source, are rendered into controlled HTML on the server, and pass through the same sanitizer as ordinary Markdown. Supported names are `infobox`, `notice`, `quotation`, `sidebar`, `gallery`, `comparison`, `timeline`, `map`, `source-excerpt`, `recipe`, `menu-excerpt`, `historical-price`, `contested-history`, and `bibliography`.
+
+````markdown
+```fh-infobox
+{"public_id":"FH-FOOD-EXAMPLE"}
+```
+
+```fh-notice
+{"title":"Research note","tone":"research","text":"Explain the evidence limitation."}
+```
+
+```fh-bibliography
+{"title":"Bibliography","citation_ids":["00000000-0000-0000-0000-000000000000"]}
+```
+````
+
+Infoboxes, maps, galleries, menu excerpts, historical prices, source excerpts, and bibliographies resolve stable canonical IDs at read time. Missing or non-public records render as unavailable and never expose draft catalogue data. Apply migration `0018_wiki_structures.sql` and reprovision the public reader after deployment.

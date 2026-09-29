@@ -106,6 +106,7 @@ def test_wiki_schema_and_public_database_role_are_read_only():
         assert connection.execute("SELECT count(*) FROM public_wiki_category").fetchone()[0] == 0
         assert connection.execute("SELECT count(*) FROM public_wiki_revision_link").fetchone()[0] == 0
         assert connection.execute("SELECT count(*) FROM public_wiki_publication").fetchone()[0] == 0
+        assert connection.execute("SELECT count(*) FROM public_wiki_revision_template").fetchone()[0] == 0
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             connection.execute("SELECT * FROM wiki_revision_image")
     with psycopg.connect(reader_url) as connection:
@@ -116,6 +117,14 @@ def test_wiki_schema_and_public_database_role_are_read_only():
         connection.execute("SET search_path TO food_history, public")
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             connection.execute("SELECT * FROM wiki_publication")
+    with psycopg.connect(reader_url) as connection:
+        connection.execute("SET search_path TO food_history, public")
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            connection.execute("SELECT * FROM wiki_article_template")
+    with psycopg.connect(reader_url) as connection:
+        connection.execute("SET search_path TO food_history, public")
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            connection.execute("SELECT * FROM wiki_revision_template")
     with psycopg.connect(reader_url) as connection:
         connection.execute("SET search_path TO food_history, public")
         with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
@@ -144,6 +153,7 @@ def test_wiki_revision_category_review_and_publication_workflow(repository):
         citation_ids=[],
         category_names=["Methods"],
         images=[],
+        template_key="dish", template_version=1,
     )
     wiki.add_revision(
         page_id,
@@ -164,6 +174,7 @@ def test_wiki_revision_category_review_and_publication_workflow(repository):
     published = wiki.get_published("integration-article")
     assert published["revision_number"] == 2
     assert published["categories"][0]["name"] == "Methods"
+    assert published["template"]["template_key"] == "dish"
     assert wiki.list_published(q="Second")[0]["slug"] == "integration-article"
     source_id = wiki.create_page(
         slug="integration-link-source", title="Link source", summary="A link fixture.",
@@ -205,3 +216,9 @@ def test_wiki_revision_category_review_and_publication_workflow(repository):
     wiki.save_glossary("corn-term", "Corn term", "A test definition.",
                        "integration-article", True)
     assert wiki.glossary_terms(["corn-term"])["corn-term"]["term"] == "Corn term"
+    version = wiki.create_template_version(
+        "dish", "dish", "Dish article", "Updated test scaffold",
+        "## Overview\n\n## Evidence", "## Evidence",
+    )
+    assert version == 2
+    assert wiki.get_article_template("dish")["version"] == 2
