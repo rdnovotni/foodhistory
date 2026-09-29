@@ -57,18 +57,7 @@ def render_article(source: str, pages: dict[str, dict] | None = None,
     pages = pages or {}
     glossary = glossary or {}
     blocks = _MARKDOWN.parse(source)
-    toc = []
-    anchors: dict[str, int] = {}
-    for index, block in enumerate(blocks):
-        if block.type == "heading_open" and block.tag in {"h2", "h3", "h4"}:
-            inline = blocks[index + 1]
-            label = unescape("".join(child.content for child in inline.children or []
-                                     if child.type in {"text", "code_inline"})).strip()
-            base = _anchor(label)
-            anchors[base] = anchors.get(base, 0) + 1
-            anchor = base if anchors[base] == 1 else f"{base}-{anchors[base]}"
-            block.attrSet("id", anchor)
-            toc.append({"id": anchor, "title": label, "level": int(block.tag[1])})
+    for block in blocks:
         if block.type != "inline":
             continue
         children = []
@@ -121,6 +110,18 @@ def render_article(source: str, pages: dict[str, dict] | None = None,
             if child.type == "link_close":
                 link_depth -= 1
         block.children = children
+    toc = []
+    anchors: dict[str, int] = {}
+    for index, block in enumerate(blocks):
+        if block.type == "heading_open" and block.tag in {"h2", "h3", "h4"}:
+            inline = blocks[index + 1]
+            label = unescape("".join(child.content for child in inline.children or []
+                                     if child.type in {"text", "code_inline"})).strip()
+            base = _anchor(label)
+            anchors[base] = anchors.get(base, 0) + 1
+            anchor = base if anchors[base] == 1 else f"{base}-{anchors[base]}"
+            block.attrSet("id", anchor)
+            toc.append({"id": anchor, "title": label, "level": int(block.tag[1])})
     html = bleach.clean(
         _MARKDOWN.renderer.render(blocks, _MARKDOWN.options, {}),
         tags=_TAGS,

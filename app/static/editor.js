@@ -32,7 +32,7 @@
   const suggestions = root.querySelector("[data-wiki-suggestions]");
   if (article && suggestions) {
     let matches = [], range = null, active = 0, requestId = 0;
-    const hide = () => { suggestions.hidden = true; suggestions.replaceChildren(); matches = []; };
+    const hide = () => { requestId += 1; suggestions.hidden = true; suggestions.replaceChildren(); matches = []; range = null; };
     const context = () => {
       const before = article.value.slice(0, article.selectionStart);
       const opening = before.lastIndexOf("[[");
@@ -41,9 +41,10 @@
       return /^[\w -]{0,60}$/.test(query) ? {opening, query: query.trim()} : null;
     };
     const choose = index => {
-      if (!range || !matches[index]) return;
+      const current = context();
+      if (!range || !current || current.opening !== range.opening || !matches[index]) { hide(); return; }
       const slug = matches[index].slug;
-      article.value = article.value.slice(0, range.opening) + `[[${slug}]]` + article.value.slice(range.end);
+      article.value = article.value.slice(0, current.opening) + `[[${slug}]]` + article.value.slice(article.selectionStart);
       article.focus(); article.setSelectionRange(range.opening + slug.length + 4, range.opening + slug.length + 4);
       hide();
     };
@@ -58,7 +59,7 @@
       suggestions.innerHTML = matches.map((item, index) => `<button type="button" role="option" data-wiki-index="${index}">${escapeHtml(item.title)} · ${escapeHtml(item.slug)}</button>`).join("");
       suggestions.hidden = !matches.length;
     }, 180);
-    article.addEventListener("input", update);
+    article.addEventListener("input", () => { hide(); update(); });
     article.addEventListener("click", update);
     article.addEventListener("keydown", event => {
       if (suggestions.hidden) return;

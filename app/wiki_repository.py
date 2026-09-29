@@ -185,7 +185,8 @@ class WikiRepository:
                       suggest: bool = True) -> list[dict[str, Any]]:
         curated = self.db.fetch_all(
             """
-            SELECT p.slug, p.title, p.summary FROM public_wiki_revision_related r
+            SELECT p.public_id, p.slug, p.title, p.summary
+            FROM public_wiki_revision_related r
             JOIN public_wiki_page p ON p.slug = r.target_slug
             WHERE r.revision_id = %s AND p.slug <> %s ORDER BY r.sequence LIMIT 8
             """, (revision_id, slug),
@@ -194,18 +195,19 @@ class WikiRepository:
             return curated
         candidates = self.db.fetch_all(
             """
-            SELECT p.slug, p.title, p.summary, count(*) AS shared_categories
+            SELECT p.public_id, p.slug, p.title, p.summary,
+                   count(*) AS shared_categories
             FROM public_wiki_revision_category mine
             JOIN public_wiki_revision_category other ON other.slug = mine.slug
             JOIN public_wiki_page p ON p.revision_id = other.revision_id
             WHERE mine.revision_id = %s AND p.slug <> %s
-            GROUP BY p.slug, p.title, p.summary
+            GROUP BY p.public_id, p.slug, p.title, p.summary
             ORDER BY shared_categories DESC, p.title LIMIT 16
             """, (revision_id, slug),
         )
         seen = {slug, *(item["slug"] for item in curated)}
         return curated + [
-            {key: item[key] for key in ("slug", "title", "summary")}
+            {key: item[key] for key in ("public_id", "slug", "title", "summary")}
             for item in candidates if item["slug"] not in seen
         ][:8 - len(curated)]
 
@@ -258,7 +260,7 @@ class WikiRepository:
     def backlinks(self, slug: str) -> list[dict[str, Any]]:
         return self.db.fetch_all(
             """
-            SELECT DISTINCT source.slug, source.title, source.summary
+            SELECT DISTINCT source.public_id, source.slug, source.title, source.summary
             FROM public_wiki_revision_link l
             JOIN public_wiki_page source ON source.revision_id = l.revision_id
             WHERE l.target_slug = %s OR l.target_slug IN (

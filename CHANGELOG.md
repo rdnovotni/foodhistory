@@ -1,5 +1,12 @@
 # Changelog
 
+## Wiki reading and navigation v1.5 — 2026-09-29
+
+- Added automatic article outlines, category breadcrumbs, internal wiki links with editor autocomplete, published backlinks, and redirect-aware link resolution.
+- Added related articles, series and collection navigation, disambiguation pages, public redirects, permanent published-revision links, public history, and page information.
+- Added print and focus layouts, reading-time estimates, random and date-based discovery, recent publication and improvement lists, glossary popovers, article previews, and footnote previews.
+- Kept backlink and related-article API responses aligned with the public schema, made autocomplete safe during rapid typing, and rendered resolved link labels in article outlines.
+
 ## Wiki authoring v1.4 — 2026-09-28
 
 - Added private searchable pickers for canonical entities, citations, and managed images.

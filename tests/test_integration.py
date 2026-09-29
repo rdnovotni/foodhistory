@@ -174,7 +174,9 @@ def test_wiki_revision_category_review_and_publication_workflow(repository):
     wiki.review(source_id, "submitted", "Ready", account_id)
     wiki.review(source_id, "approved", "Approved", account_id)
     wiki.publish(source_id)
-    assert wiki.backlinks("integration-article")[0]["slug"] == "integration-link-source"
+    backlink = wiki.backlinks("integration-article")[0]
+    assert backlink["slug"] == "integration-link-source"
+    assert backlink["public_id"].startswith("FH-WIKI-")
     wiki.create_series("integration-series", "Integration series", "A test collection")
     wiki.add_revision(
         page_id, title="Integration article", summary="Improved history.",
@@ -195,7 +197,9 @@ def test_wiki_revision_category_review_and_publication_workflow(repository):
     )["revision_id"])[0]["slug"] == "integration-series"
     assert wiki.on_this_day(9, 28)[0]["slug"] == "integration-article"
     assert wiki.recent_pages(improved=True)[0]["slug"] == "integration-article"
-    assert wiki.get_published("integration-article")["related"][0]["slug"] == "integration-link-source"
+    related = wiki.get_published("integration-article")["related"][0]
+    assert related["slug"] == "integration-link-source"
+    assert related["public_id"].startswith("FH-WIKI-")
     wiki.add_redirect(page_id, "integration-article-old", account_id)
     assert wiki.get_published("integration-article-old")["redirect_slug"] == "integration-article"
     wiki.save_glossary("corn-term", "Corn term", "A test definition.",
