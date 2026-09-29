@@ -262,6 +262,16 @@ components:
                 is_disambiguation: {type: boolean}
                 event_month: {type: [integer, 'null']}
                 event_day: {type: [integer, 'null']}
+            template:
+              oneOf:
+                - type: object
+                  required: [template_key, template_version, article_type, title]
+                  properties:
+                    template_key: {type: string}
+                    template_version: {type: integer, minimum: 1}
+                    article_type: {type: string}
+                    title: {type: string}
+                - {type: 'null'}
             entities:
               type: array
               items:

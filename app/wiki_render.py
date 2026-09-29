@@ -10,13 +10,17 @@ from markdown_it import MarkdownIt
 from markdown_it.token import Token
 from mdit_py_plugins.footnote import footnote_plugin
 
+from app.wiki_structures import apply_structures
+
 _MARKDOWN = MarkdownIt("commonmark", {"html": False, "linkify": False}).use(footnote_plugin)
 _LINK = re.compile(r"\[\[([a-z0-9]+(?:-[a-z0-9]+)*)(?:\|([^\[\]\n]+))?\]\]")
 _GLOSSARY = re.compile(r"\{\{([a-z0-9]+(?:-[a-z0-9]+)*)\}\}")
 _INLINE = re.compile(r"\[\[([a-z0-9]+(?:-[a-z0-9]+)*)(?:\|([^\[\]\n]+))?\]\]|\{\{([a-z0-9]+(?:-[a-z0-9]+)*)\}\}")
 _TAGS = {
-    "a", "blockquote", "br", "code", "em", "h1", "h2", "h3", "h4", "hr",
-    "li", "ol", "p", "pre", "span", "strong", "ul", "sup", "section", "button",
+    "a", "aside", "blockquote", "br", "button", "code", "dd", "div", "dl", "dt",
+    "em", "figcaption", "figure", "h1", "h2", "h3", "h4", "hr", "img", "li",
+    "ol", "p", "pre", "section", "span", "strong", "sup", "table", "tbody", "td",
+    "th", "thead", "time", "tr", "ul",
 }
 
 
@@ -52,11 +56,13 @@ def _anchor(value: str) -> str:
 
 
 def render_article(source: str, pages: dict[str, dict] | None = None,
-                   glossary: dict[str, dict] | None = None) -> dict:
+                   glossary: dict[str, dict] | None = None,
+                   structures: dict | None = None) -> dict:
     """Render article body and a matching heading outline; pages are public targets."""
     pages = pages or {}
     glossary = glossary or {}
     blocks = _MARKDOWN.parse(source)
+    apply_structures(blocks, structures)
     for block in blocks:
         if block.type != "inline":
             continue
@@ -126,9 +132,13 @@ def render_article(source: str, pages: dict[str, dict] | None = None,
         _MARKDOWN.renderer.render(blocks, _MARKDOWN.options, {}),
         tags=_TAGS,
         attributes={"a": ["href", "title", "id", "class"], "span": ["class", "title"],
-                    "h2": ["id"], "h3": ["id"], "h4": ["id"], "li": ["id", "class"],
-                    "sup": ["class"], "section": ["class"], "ol": ["class"], "hr": ["class"],
-                    "button": ["type", "class", "title", "data-definition", "data-article"]},
+                    "h2": ["id"], "h3": ["id"], "h4": ["id"],
+                    "sup": ["class"], "section": ["class", "data-map"], "ol": ["class"], "hr": ["class"],
+                    "button": ["type", "class", "title", "data-definition", "data-article"],
+                    "aside": ["class"], "div": ["class", "aria-hidden"],
+                    "figure": ["class"], "figcaption": ["class"], "blockquote": ["class"],
+                    "table": ["class"], "img": ["src", "alt", "width", "height"],
+                    "li": ["id", "class", "data-map-point", "data-latitude", "data-longitude"]},
         protocols={"http", "https", "mailto"},
         strip=True,
     )

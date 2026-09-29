@@ -1,5 +1,11 @@
 # Changelog
 
+## Reusable article structures v1.6 — 2026-09-29
+
+- Added versioned editorial templates for dishes, ingredients, restaurants, people, companies, books, and objects, with revision provenance and an append-only template migration path.
+- Added canonical-record infoboxes and reusable notice, quotation, sidebar, gallery, comparison, timeline, map, source excerpt, recipe transcription, menu excerpt, historical-price, contested-history, and bibliography blocks.
+- Structured blocks resolve only public canonical records and render through the existing server-side sanitizer and public-reader boundary.
+
 ## Wiki reading and navigation v1.5 — 2026-09-29
 
 - Added automatic article outlines, category breadcrumbs, internal wiki links with editor autocomplete, published backlinks, and redirect-aware link resolution.

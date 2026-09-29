@@ -20,6 +20,7 @@ from app.config import Settings
 from app.db import Database
 from app.wiki_render import glossary_slugs, render_article, wiki_link_slugs
 from app.wiki_repository import WikiRepository
+from app.wiki_structures import structure_references
 
 SESSION_COOKIE = "fh_editor_session"
 CSRF_COOKIE = "fh_editor_csrf"
@@ -77,7 +78,8 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         slugs = wiki_link_slugs(body)
         terms = repo.glossary_terms(glossary_slugs(body))
         links = slugs + [term["article_slug"] for term in terms.values() if term["article_slug"]]
-        return render_article(body, repo.public_link_targets(links), terms)
+        structures = repo.structured_block_data(structure_references(body))
+        return render_article(body, repo.public_link_targets(links), terms, structures)
 
     @router.get("/v1/wiki/pages", tags=["wiki"])
     def wiki_pages(
@@ -325,16 +327,19 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         )
 
     @router.get("/editor/pages/new", response_class=HTMLResponse, include_in_schema=False)
-    def editor_new(request: Request, repo: WikiRepo) -> HTMLResponse:
+    def editor_new(request: Request, repo: WikiRepo, template: str = "") -> HTMLResponse:
         account = _require_account(request, repo)
         if account["role"] not in {"owner", "editor"}:
             raise HTTPException(status_code=403, detail="Editor role required")
+        selected_template = repo.get_article_template(template) if template else None
         return templates.TemplateResponse(
             request=request,
             name="editor_form.html",
             context={
                 "account": account,
                 "page": None,
+                "templates": repo.list_article_templates(),
+                "selected_template": selected_template,
                 "categories": repo.list_editor_categories(),
                 "series_list": repo.list_series(),
                 "csrf_token": request.cookies.get(CSRF_COOKIE, ""),
@@ -361,6 +366,8 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         is_disambiguation: Annotated[bool, Form()] = False,
         event_month: Annotated[int | None, Form()] = None,
         event_day: Annotated[int | None, Form()] = None,
+        template_key: Annotated[str, Form()] = "",
+        template_version: Annotated[int | None, Form()] = None,
     ) -> RedirectResponse:
         account = _require_account(request, repo)
         _require_csrf(request, account, csrf_token)
@@ -375,6 +382,7 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
             series_slug=series_slug, series_position=series_position,
             related_slugs=_csv(related_slugs), is_disambiguation=is_disambiguation,
             event_month=event_month, event_day=event_day,
+            template_key=template_key, template_version=template_version,
         )
         return RedirectResponse(f"/editor/pages/{page_id}", status_code=303)
 
@@ -406,6 +414,8 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
             context={
                 "account": account,
                 "page": page,
+                "templates": repo.list_article_templates(),
+                "selected_template": None,
                 "categories": repo.list_editor_categories(),
                 "series_list": repo.list_series(),
                 "csrf_token": request.cookies.get(CSRF_COOKIE, ""),
@@ -432,6 +442,8 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
         is_disambiguation: Annotated[bool, Form()] = False,
         event_month: Annotated[int | None, Form()] = None,
         event_day: Annotated[int | None, Form()] = None,
+        template_key: Annotated[str, Form()] = "",
+        template_version: Annotated[int | None, Form()] = None,
     ) -> RedirectResponse:
         account = _require_account(request, repo)
         _require_csrf(request, account, csrf_token)
@@ -445,6 +457,45 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
             series_slug=series_slug, series_position=series_position,
             related_slugs=_csv(related_slugs), is_disambiguation=is_disambiguation,
             event_month=event_month, event_day=event_day,
+            template_key=template_key, template_version=template_version,
+        )
+        return RedirectResponse(f"/editor/pages/{page_id}", status_code=303)
+
+    @router.post("/editor/pages/{page_id}/template-migration", include_in_schema=False)
+    def editor_template_migration(
+        request: Request, page_id: str, repo: WikiRepo,
+        csrf_token: Annotated[str, Form()],
+    ) -> RedirectResponse:
+        account = _require_account(request, repo)
+        _require_csrf(request, account, csrf_token)
+        if account["role"] not in {"owner", "editor"}:
+            raise HTTPException(status_code=403, detail="Editor role required")
+        page = repo.get_editor_page(page_id)
+        if not page or not page.get("template"):
+            raise HTTPException(status_code=404, detail="Versioned template not found")
+        old = page["template"]
+        latest = repo.get_article_template(old["template_key"])
+        if not latest or latest["version"] <= old["template_version"]:
+            raise HTTPException(status_code=409, detail="Article already uses the latest template")
+        addition = latest["migration_markdown"].strip()
+        body = page["body_markdown"]
+        if addition:
+            body = f"{body.rstrip()}\n\n{addition}\n"
+        repo.add_revision(
+            page_id, title=page["title"], summary=page.get("summary") or "",
+            body_markdown=body,
+            change_note=f"Migrated {old['template_key']} template to version {latest['version']}",
+            user_id=account["account_id"], entity_public_ids=page["entity_public_ids"],
+            citation_ids=page["citation_ids"], category_names=page["category_names"],
+            images=page["images"],
+            series_slug=(page["series_membership"] or {}).get("slug", ""),
+            series_position=(page["series_membership"] or {}).get("position"),
+            related_slugs=page["related_slugs"],
+            is_disambiguation=page["metadata"]["is_disambiguation"],
+            event_month=page["metadata"]["event_month"],
+            event_day=page["metadata"]["event_day"],
+            template_key=latest["template_key"], template_version=latest["version"],
+            migrated_from_version=old["template_version"],
         )
         return RedirectResponse(f"/editor/pages/{page_id}", status_code=303)
 
@@ -457,6 +508,42 @@ def build_wiki_router(templates: Jinja2Templates, settings: Settings) -> APIRout
     def wiki_picker(request: Request, repo: WikiRepo, q: str = "") -> list[dict[str, Any]]:
         _require_account(request, repo)
         return repo.search_wiki_pages(q.strip()) if q.strip() else []
+
+    @router.get("/editor/templates", response_class=HTMLResponse, include_in_schema=False)
+    def editor_templates(request: Request, repo: WikiRepo) -> HTMLResponse:
+        account = _require_account(request, repo)
+        if account["role"] != "owner":
+            raise HTTPException(status_code=403, detail="Owner role required")
+        return templates.TemplateResponse(
+            request=request, name="editor_templates.html",
+            context={"versions": repo.list_template_versions(), "account": account,
+                     "csrf_token": request.cookies.get(CSRF_COOKIE, "")},
+        )
+
+    @router.post("/editor/templates", include_in_schema=False)
+    def editor_create_template_version(
+        request: Request, repo: WikiRepo,
+        csrf_token: Annotated[str, Form()], key: Annotated[str, Form()],
+        article_type: Annotated[str, Form()], title: Annotated[str, Form(min_length=1)],
+        body_markdown: Annotated[str, Form(min_length=1)],
+        description: Annotated[str, Form()] = "",
+        migration_markdown: Annotated[str, Form()] = "",
+    ) -> RedirectResponse:
+        account = _require_account(request, repo)
+        _require_csrf(request, account, csrf_token)
+        if account["role"] != "owner":
+            raise HTTPException(status_code=403, detail="Owner role required")
+        allowed = {"dish", "ingredient", "restaurant", "person", "company", "book", "object"}
+        if article_type not in allowed:
+            raise HTTPException(status_code=422, detail="Invalid article type")
+        try:
+            repo.create_template_version(
+                _slug(key), article_type, title.strip(), description.strip(), body_markdown,
+                migration_markdown,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return RedirectResponse("/editor/templates", status_code=303)
 
     @router.get("/editor/series", response_class=HTMLResponse, include_in_schema=False)
     def editor_series(request: Request, repo: WikiRepo) -> HTMLResponse:
