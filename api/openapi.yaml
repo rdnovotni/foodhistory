@@ -137,6 +137,32 @@ paths:
           description: Published wiki article
           content: {application/json: {schema: {$ref: '#/components/schemas/WikiPage'}}}
         '404': {$ref: '#/components/responses/NotFound'}
+  /wiki/pages/{slug}/preview:
+    get:
+      summary: Get a short published article preview
+      parameters:
+        - {name: slug, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Title, summary, and estimated reading minutes
+        '404': {$ref: '#/components/responses/NotFound'}
+  /wiki/pages/{slug}/revisions:
+    get:
+      summary: List revisions that were actually published
+      parameters:
+        - {name: slug, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Public publication history}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /wiki/pages/{slug}/revisions/{number}:
+    get:
+      summary: Retrieve a permanently linked published revision
+      parameters:
+        - {name: slug, in: path, required: true, schema: {type: string}}
+        - {name: number, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200': {description: Published revision text and rendered HTML}
+        '404': {$ref: '#/components/responses/NotFound'}
   /admin/ingest/menu:
     post:
       summary: Ingest or update one menu package
@@ -207,10 +233,11 @@ components:
       allOf:
         - {$ref: '#/components/schemas/WikiPageSummary'}
         - type: object
-          required: [revision_number, body_html, toc, backlinks, entities, citations, categories, images]
+          required: [revision_number, body_html, toc, reading_minutes, backlinks, related, series, metadata, entities, citations, categories, images]
           properties:
             revision_number: {type: integer, minimum: 1}
             body_html: {type: string, description: Sanitized server-rendered article HTML}
+            reading_minutes: {type: integer, minimum: 1}
             toc:
               type: array
               items:
@@ -223,6 +250,18 @@ components:
             backlinks:
               type: array
               items: {$ref: '#/components/schemas/WikiPageSummary'}
+            related:
+              type: array
+              items: {$ref: '#/components/schemas/WikiPageSummary'}
+            series:
+              type: array
+              items: {type: object, description: Published series members and adjacent pages}
+            metadata:
+              type: object
+              properties:
+                is_disambiguation: {type: boolean}
+                event_month: {type: [integer, 'null']}
+                event_day: {type: [integer, 'null']}
             entities:
               type: array
               items:

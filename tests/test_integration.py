@@ -105,12 +105,17 @@ def test_wiki_schema_and_public_database_role_are_read_only():
         assert connection.execute("SELECT count(*) FROM public_wiki_page").fetchone()[0] == 0
         assert connection.execute("SELECT count(*) FROM public_wiki_category").fetchone()[0] == 0
         assert connection.execute("SELECT count(*) FROM public_wiki_revision_link").fetchone()[0] == 0
+        assert connection.execute("SELECT count(*) FROM public_wiki_publication").fetchone()[0] == 0
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             connection.execute("SELECT * FROM wiki_revision_image")
     with psycopg.connect(reader_url) as connection:
         connection.execute("SET search_path TO food_history, public")
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             connection.execute("SELECT * FROM wiki_revision_link")
+    with psycopg.connect(reader_url) as connection:
+        connection.execute("SET search_path TO food_history, public")
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            connection.execute("SELECT * FROM wiki_publication")
     with psycopg.connect(reader_url) as connection:
         connection.execute("SET search_path TO food_history, public")
         with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
@@ -170,3 +175,29 @@ def test_wiki_revision_category_review_and_publication_workflow(repository):
     wiki.review(source_id, "approved", "Approved", account_id)
     wiki.publish(source_id)
     assert wiki.backlinks("integration-article")[0]["slug"] == "integration-link-source"
+    wiki.create_series("integration-series", "Integration series", "A test collection")
+    wiki.add_revision(
+        page_id, title="Integration article", summary="Improved history.",
+        body_markdown="## Later history\n\nSee [[integration-link-source]].",
+        change_note="Expanded", user_id=account_id, entity_public_ids=[], citation_ids=[],
+        category_names=["Methods"], images=[], series_slug="integration-series",
+        series_position=1, related_slugs=["integration-link-source"],
+        event_month=9, event_day=28,
+    )
+    wiki.review(page_id, "submitted", "Ready", account_id)
+    wiki.review(page_id, "approved", "Approved", account_id)
+    wiki.publish(page_id)
+    assert len(wiki.published_revisions("integration-article")) == 2
+    assert wiki.published_revision("integration-article", 2)["title"] == "Integration article"
+    assert wiki.published_revision("integration-article", 1) is None
+    assert wiki.series_navigation(wiki.db.fetch_one(
+        "SELECT revision_id FROM public_wiki_page WHERE slug = %s", ("integration-article",)
+    )["revision_id"])[0]["slug"] == "integration-series"
+    assert wiki.on_this_day(9, 28)[0]["slug"] == "integration-article"
+    assert wiki.recent_pages(improved=True)[0]["slug"] == "integration-article"
+    assert wiki.get_published("integration-article")["related"][0]["slug"] == "integration-link-source"
+    wiki.add_redirect(page_id, "integration-article-old", account_id)
+    assert wiki.get_published("integration-article-old")["redirect_slug"] == "integration-article"
+    wiki.save_glossary("corn-term", "Corn term", "A test definition.",
+                       "integration-article", True)
+    assert wiki.glossary_terms(["corn-term"])["corn-term"]["term"] == "Corn term"

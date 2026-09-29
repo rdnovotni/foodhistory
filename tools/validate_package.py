@@ -90,8 +90,8 @@ def parse_migrations():
         if table in tables:
             fail(f"table created twice: {table}")
         tables[table] = cols
-    if len(tables) != 68:
-        fail(f"expected 68 application tables, parsed {len(tables)}")
+    if len(tables) != 74:
+        fail(f"expected 74 application tables, parsed {len(tables)}")
     fk_re = re.compile(r'ALTER TABLE\s+"(?P<child>[^"]+)".*?FOREIGN KEY\s*\("(?P<childcol>[^"]+)"\)\s*REFERENCES\s+"(?P<parent>[^"]+)"\s*\("(?P<parentcol>[^"]+)"\)', re.I)
     for m in fk_re.finditer(sql):
         child, childcol, parent, parentcol = m.group("child"), m.group("childcol"), m.group("parent"), m.group("parentcol")

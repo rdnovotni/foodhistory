@@ -7,7 +7,7 @@ from PIL import Image
 from app.auth import digest_secret, hash_password, verify_password
 from app.config import Settings
 from app.main import create_app, get_repository
-from app.wiki_render import render_article, render_markdown, wiki_link_slugs
+from app.wiki_render import glossary_slugs, render_article, render_markdown, wiki_link_slugs
 from app.wiki_routes import get_wiki_repository
 from tests.test_app import FakeRepository
 
@@ -31,6 +31,52 @@ class FakeWikiRepository:
     def list_editor_categories(self):
         return self.list_public_categories()
 
+    def list_series(self):
+        return []
+
+    def create_series(self, slug, title, description):
+        self.created_series = (slug, title, description)
+
+    def list_glossary(self):
+        return []
+
+    def save_glossary(self, slug, term, definition, article_slug, is_published):
+        self.saved_term = (slug, term, definition, article_slug, is_published)
+
+    def add_redirect(self, page_id, slug, account_id):
+        self.redirect = slug
+
+    def delete_redirect(self, page_id, slug):
+        self.deleted_redirect = slug
+
+    def recent_pages(self, improved=False):
+        return []
+
+    def on_this_day(self, month, day):
+        return []
+
+    def glossary_terms(self, slugs):
+        return {}
+
+    def random_page(self):
+        return {"slug": "apple-pie"}
+
+    def published_revisions(self, slug):
+        return [{"revision_number": 2, "title": "Apple pie", "published_at": "now", "is_current": True}]
+
+    def published_revision(self, slug, number):
+        return {"slug": slug, "revision_number": number, "title": "Apple pie",
+                "summary": "History.", "body_markdown": "## Origins\n\nA researched article.",
+                "published_at": "now"} if number == 2 and slug == "apple-pie" else None
+
+    def page_information(self, slug):
+        return {"slug": slug, "title": "Apple pie", "public_id": "FH-WIKI-TEST",
+                "revision_created_at": "now", "first_published_at": "now",
+                "revision_count": 1, "backlink_count": 1, "redirects": []} if slug == "apple-pie" else None
+
+    def public_series(self, slug):
+        return None
+
     def search_wiki_pages(self, q):
         return [{"slug": "apple-pie", "title": "Apple pie"}]
 
@@ -48,6 +94,7 @@ class FakeWikiRepository:
             "title": "Apple pie", "summary": "History.",
             "body_markdown": "## Origins\n\nA researched article.",
             "entities": [], "citations": [], "categories": [], "images": [],
+            "series": [], "related": [], "metadata": {"is_disambiguation": False},
         }
 
     def authenticate(self, username, password):
@@ -76,6 +123,8 @@ class FakeWikiRepository:
             "revision_number": 2, "summary": "History.", "body_markdown": "New text",
             "entity_public_ids": [], "citation_ids": [], "category_names": [],
             "images": [], "reviews": [],
+            "metadata": {"is_disambiguation": False, "event_month": None, "event_day": None},
+            "series_membership": None, "related_slugs": [], "redirects": [],
         }
 
     def list_revisions(self, page_id):
@@ -139,6 +188,18 @@ def test_outline_and_links_ignore_code_and_existing_links():
     assert 'id="origins-names-2"' in result["body_html"]
 
 
+def test_glossary_and_footnotes_are_safe_and_previewable():
+    source = "A {{sagamite}}[^1] and `{{code}}`.\n\n[^1]: See [[apple-pie]]."
+    assert glossary_slugs(source) == ["sagamite"]
+    result = render_article(source, {"apple-pie": {"slug": "apple-pie", "title": "Apple pie"}},
+                            {"sagamite": {"term": "Sagamité", "definition": "A corn dish <script>",
+                                           "article_slug": "apple-pie"}})
+    assert 'class="glossary-term"' in result["body_html"]
+    assert 'data-definition="A corn dish &lt;script&gt;"' in result["body_html"]
+    assert 'href="#fn1"' in result["body_html"]
+    assert 'id="fn1"' in result["body_html"]
+
+
 def test_public_wiki_reads_only_published_content():
     client, _ = make_client()
     assert "Apple pie" in client.get("/wiki").text
@@ -149,6 +210,14 @@ def test_public_wiki_reads_only_published_content():
     assert "A researched article" in client.get("/wiki/apple-pie").text
     assert 'href="#origins"' in client.get("/wiki/apple-pie").text
     assert "What links here" in client.get("/wiki/apple-pie").text
+    assert "min read" in client.get("/wiki/apple-pie").text
+    assert client.get("/wiki/random", follow_redirects=False).headers["location"] == "/wiki/apple-pie"
+    assert client.get("/wiki/apple-pie/history").status_code == 200
+    assert client.get("/wiki/apple-pie/revisions/2").status_code == 200
+    assert client.get("/wiki/apple-pie/revisions/1").status_code == 404
+    assert "Stable ID" in client.get("/wiki/apple-pie/information").text
+    assert "Exit focus view" in client.get("/wiki/apple-pie?view=focus").text
+    assert client.get("/v1/wiki/pages/apple-pie/preview").json()["reading_minutes"] == 1
     assert "Desserts" in client.get("/wiki/categories").text
     assert "Apple pie" in client.get("/wiki/category/desserts").text
 
@@ -186,6 +255,28 @@ def test_editor_can_sign_in_and_create_draft_with_csrf_protection():
     assert created.status_code == 303
     assert wiki.created["entity_public_ids"] == ["FH-TEST"]
     assert wiki.created["category_names"] == []
+    assert wiki.created["is_disambiguation"] is False
+    with_empty_optional_numbers = client.post(
+        "/editor/pages", data={"csrf_token": csrf, "slug": "second-page", "title": "Second page",
+                               "body_markdown": "Text", "series_position": "", "event_month": "",
+                               "event_day": ""}, follow_redirects=False,
+    )
+    assert with_empty_optional_numbers.status_code == 303
+
+
+def test_editor_can_manage_series_glossary_and_redirects():
+    client, wiki = make_client("editorial")
+    client.post("/editor/login", data={"username": "editor", "password": "a sufficiently long password"})
+    csrf = client.cookies.get("fh_editor_csrf")
+    assert "Article series" in client.get("/editor/series").text
+    assert client.post("/editor/series", data={"csrf_token": csrf, "slug": "early-foods",
+                                                  "title": "Early foods"}).status_code == 200
+    assert wiki.created_series[:2] == ("early-foods", "Early foods")
+    assert client.post("/editor/glossary", data={"csrf_token": csrf, "slug": "sagamite",
+                    "term": "Sagamité", "definition": "A corn preparation.", "is_published": "true"}).status_code == 200
+    assert wiki.saved_term[-1] is True
+    client.post("/editor/pages/test/redirects", data={"csrf_token": csrf, "slug": "old-pie"})
+    assert wiki.redirect == "old-pie"
 
 
 def test_editor_picker_and_validated_image_upload(tmp_path):
